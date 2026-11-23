@@ -11,16 +11,16 @@
 | 阶段 | 状态 |
 |---|---|
 | Prompt 0 · 经历库 CRUD + 本地存储 | 已完成 |
-| Prompt 1 · JD 解析节点 | 待开发 |
+| Prompt 1 · JD 解析节点 | 已完成 |
 | Prompt 2 · 匹配分析 + 缺口识别（作品集主图） | 待开发 |
 | Prompt 3 · 简历生成 + 事实校验 | 待开发 |
 | Prompt 4 · 评测模式 + V1/V2 对比 | 待开发 |
 
 ## 如何运行
 
-直接用浏览器打开 `index.html`。首次使用请在页面右上角「设置」中填写 DeepSeek API Key（仅存本机浏览器 localStorage，不上传、不写入代码）。
+直接用浏览器打开 `index.html`。首次使用请在页面右上角「设置」中填写 DeepSeek API Key（保存在本机浏览器 localStorage；解析时会随请求发送至 DeepSeek API）。
 
-> 当前版本尚未接入大模型，可先体验经历库的新增 / 编辑 / 确认 / 删除与本地持久化。
+JD 分析 Tab 支持粘贴并解析岗位描述、编辑结构化 JSON 画像、查看节点输入摘要 / 输出 / 耗时。JD 原文和解析结果保存在浏览器 localStorage。API Key 从「设置」读取；此单文件 Demo 会在浏览器中直接调用 DeepSeek 兼容接口。
 
 ## 核心设计
 
@@ -41,7 +41,14 @@
 
 ## 文档
 
-- [开发执行手册](开发执行手册.md) — 分批开发指令与作品集沉淀清单
-- [PROMPTS.md](PROMPTS.md) — 各版 system prompt 与变更记录
+- [CODEX开发指令.md](CODEX开发指令.md) — 五个阶段可直接复制的开发指令（**开发时看这份**）
+- [PROMPTS.md](PROMPTS.md) — 6 个节点的 system prompt V1 全文与版本变更（**prompt 唯一真相源**）
+- [开发执行手册](开发执行手册.md) — 开发方法论、评测集结构、作品集沉淀清单
 - [DECISIONS.md](DECISIONS.md) — 关键决策与权衡
 - `docs/screenshots/` — 作品集截图（待补）
+
+## 分工约定
+
+- 你（PM）：审阅 `PROMPTS.md` 的约束、决定迭代改动、用真实数据验收、截图存证。
+- Codex：只读 `PROMPTS.md` 取 prompt 全文，照 `CODEX开发指令.md` 写代码，不改写产品逻辑。
+- 节点 prompt 只维护 `PROMPTS.md` 一处，改 V1→V2 时所有阶段自动生效。

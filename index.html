@@ -117,6 +117,18 @@
   .placeholder h2{font-size:16px;font-weight:600;margin-bottom:8px}
   .placeholder p{font-size:13px;color:var(--text-3);max-width:560px;margin:0 auto 16px}
   .placeholder code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:2px 6px;font-size:12px}
+  .jd-layout{display:grid;grid-template-columns:1fr;gap:14px}
+  .jd-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+  .jd-panel h2{font-size:15px;margin-bottom:12px}
+  #jdInput{min-height:190px;line-height:1.7}
+  #jdOutput{min-height:360px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre}
+  .jd-actions{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .jd-status{font-size:12px;color:var(--text-3)}
+  .node-meta{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:12px;margin-bottom:12px}
+  .node-meta .k{color:var(--text-3)}
+  .node-summary{padding:10px 12px;background:var(--bg);border-radius:7px;white-space:pre-wrap;word-break:break-word}
+  .node-json{max-height:260px;overflow:auto;margin-top:8px;padding:12px;background:#171b24;color:#e7ebf3;border-radius:7px;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+  button:disabled{opacity:.55;cursor:wait}
 
   .foot-note{max-width:1040px;margin:0 auto;padding:0 28px 32px;font-size:11px;color:var(--text-3)}
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.entry-grid{grid-template-columns:1fr}
@@ -139,7 +151,7 @@
 <div class="tabs">
   <button class="tab active" data-tab="dashboard">工作台</button>
   <button class="tab" data-tab="experience">经历库</button>
-  <button class="tab disabled" title="后续阶段实现">JD 分析</button>
+  <button class="tab" data-tab="jd">JD 分析</button>
   <button class="tab disabled" title="后续阶段实现">匹配分析</button>
   <button class="tab disabled" title="后续阶段实现">简历生成</button>
 </div>
@@ -158,7 +170,7 @@
       </button>
       <button class="entry soon">
         <span class="idx">2</span>
-        <span><span class="t">开始岗位匹配</span><span class="d">Prompt 1–2 完成后开放：JD 解析与经历证据匹配</span></span>
+        <span><span class="t">开始岗位匹配</span><span class="d">Prompt 2 完成后开放：经历证据匹配</span></span>
       </button>
       <button class="entry soon">
         <span class="idx">3</span>
@@ -189,13 +201,25 @@
     <div class="exp-list" id="expList"></div>
   </section>
 
-  <!-- 页面 3：JD 分析（占位，Prompt 1 实现） -->
+  <!-- 页面 3：JD 分析 -->
   <section class="page" id="page-jd">
-    <div class="page-head"><div><h1>JD 分析</h1><div class="hint">岗位要求结构化</div></div></div>
-    <div class="placeholder">
-      <div class="tagline">PROMPT 1</div>
-      <h2>JD 解析节点将在这里实现</h2>
-      <p>粘贴 JD → 输出能力画像。强约束：不得凭空增加 JD 中不存在的硬性要求，不确定的项标记“待确认”。实现后在此展示解析结果与节点输入输出。</p>
+    <div class="page-head"><div><h1>JD 分析</h1><div class="hint">粘贴岗位描述，提取可编辑的结构化能力画像</div></div></div>
+    <div class="jd-layout">
+      <div class="jd-panel">
+        <h2>岗位描述</h2>
+        <textarea id="jdInput" placeholder="粘贴完整 JD。原文会保存在当前浏览器，供后续追溯。"></textarea>
+        <div class="jd-actions"><button class="primary" id="btnParseJD">解析 JD</button><span class="jd-status" id="jdStatus">原始 JD 自动保存在本机</span></div>
+      </div>
+      <div class="jd-panel">
+        <h2>能力画像 <span class="hint">（JSON 可直接编辑）</span></h2>
+        <textarea id="jdOutput" spellcheck="false" aria-label="可编辑的 JD 解析 JSON" placeholder="解析结果会显示在这里；也可以粘贴合法 JSON 后保存修改。"></textarea>
+        <div class="jd-actions"><button id="btnSaveJDResult">保存修改</button><span class="jd-status" id="jdEditStatus"></span></div>
+      </div>
+      <div class="jd-panel" id="jdNode" hidden>
+        <h2>节点可视化 · JD 解析</h2>
+        <div class="node-meta"><div class="k">输入 JD 摘要</div><div id="jdNodeSummary" class="node-summary"></div><div class="k">节点耗时</div><div id="jdNodeDuration">—</div></div>
+        <div class="hint">完整输出 JSON</div><pre id="jdNodeJson" class="node-json"></pre>
+      </div>
     </div>
   </section>
 
@@ -220,13 +244,13 @@
   </section>
 </main>
 
-<div class="foot-note">个人离线 Demo · 数据仅存于本机浏览器 · 尚未接入大模型 · 无真实用户与上线数据</div>
+<div class="foot-note">个人 Demo · JD 与经历数据保存在本机浏览器 · 调用 JD 解析时会将 JD 和 API Key 发送至 DeepSeek · 无真实用户与上线数据</div>
 
 <!-- 经历表单弹窗 -->
 <div class="modal-mask" id="maskForm">
   <div class="modal wide">
     <div class="modal-head"><h2 id="formTitle">新增经历</h2><button class="ghost" data-close="maskForm">关闭</button></div>
-    <div class="form-grid" id="expForm">
+    <form class="form-grid" id="expForm" onsubmit="return false">
       <div class="full"><label>项目名称 *</label><input name="project_name" placeholder="如：AI 音乐生成模块"></div>
       <div class="full"><label>项目背景</label><textarea name="project_background" placeholder="官网新增 AI 音乐生成功能，解决……"></textarea></div>
       <div class="full"><label>用户问题</label><textarea name="user_problem" placeholder="用户需要更便捷的创作流程"></textarea></div>
@@ -236,7 +260,7 @@
       <div><label>能力标签（逗号分隔）</label><input name="skills" placeholder="AI 产品设计, 需求分析"></div>
       <div><label>信息来源</label><select name="evidence_source"><option>用户填写</option><option>简历导入</option></select></div>
       <div class="full"><div class="hint">新增默认“待确认”，你可在列表中点“确认”后才进入正式经历资产。</div></div>
-    </div>
+    </form>
     <div class="modal-foot">
       <button data-close="maskForm">取消</button>
       <button class="primary" id="btnSaveExp">保存经历</button>
@@ -260,7 +284,7 @@
     <div>
       <label>DeepSeek API Key</label>
       <input type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
-      <div class="hint" style="margin-top:8px">仅保存在本机浏览器 localStorage，不会写入代码或上传。<br>Prompt 1 接入节点时从这里读取。</div>
+      <div class="hint" style="margin-top:8px">Key 保存在本机浏览器 localStorage，不写入代码。调用解析时，JD 与 Key 会发送至 DeepSeek API。<br>仅在你点击「解析 JD」时发起请求。</div>
     </div>
     <div class="modal-foot">
       <button data-close="maskSetting">取消</button>
@@ -281,11 +305,22 @@
      openExpForm / closeExpForm / saveExp —— 新增 / 编辑表单
      confirmExp / deleteExp / showDetail  —— 确认 / 删除 / 详情
      renderSetting / saveKey      —— API Key 设置
-   Prompt 1–3 将在这里追加 callLLM / 各节点函数（当前不实现 AI 调用）
+     callLLM / parseJD            —— DeepSeek 调用与 JD 解析节点
    ============================================================ */
 
   const KEY_EXP = 'experiences';
   const KEY_API = 'deepseek_api_key';
+  const KEY_JD = 'jd_analysis';
+  const JD_SCHEMA = {
+    type:'object', additionalProperties:false,
+    properties:{
+      position_name:{type:'string'},
+      responsibilities:{type:'array',items:{type:'string'}},
+      core_requirements:{type:'array',items:{type:'object',additionalProperties:false,properties:{ability:{type:'string'},text:{type:'string'},priority:{type:'string'}},required:['ability','text','priority']}},
+      must_haves:{type:'array',items:{type:'string'}}, nice_to_haves:{type:'array',items:{type:'string'}},
+      tech_skills:{type:'array',items:{type:'string'}}, business_skills:{type:'array',items:{type:'string'}}
+    }, required:['position_name','responsibilities','core_requirements','must_haves','nice_to_haves','tech_skills','business_skills']
+  };
   const FIELDS = ['project_name','project_background','user_problem','responsibilities',
     'actions','results','skills','evidence_source','confirmation_status'];
   const FIELD_LABEL = {
@@ -316,6 +351,7 @@
     document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id === 'page-'+name));
     if(name==='dashboard') renderStats();
     if(name==='experience') renderExperiences();
+    if(name==='jd') loadJDView();
   }
   function gotoPage(name){ switchTab(name) }
 
@@ -440,6 +476,86 @@
     renderSetting();
   }
 
+  /* ---------- JD 解析节点 ---------- */
+  function loadJDView(){
+    const saved=lsGet(KEY_JD,{});
+    const input=document.getElementById('jdInput');
+    if(document.activeElement!==input) input.value=saved.jd||'';
+    const output=document.getElementById('jdOutput');
+    if(document.activeElement!==output) output.value=saved.result?JSON.stringify(saved.result,null,2):'';
+    document.getElementById('jdNode').hidden=!saved.node;
+    if(saved.node) renderJDNode(saved.node);
+  }
+  function saveJDInput(){
+    const current=lsGet(KEY_JD,{});
+    current.jd=document.getElementById('jdInput').value;
+    lsSet(KEY_JD,current);
+  }
+  function validateJDResult(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    for(const key of JD_SCHEMA.required) if(!(key in data)) throw new Error('缺少字段：'+key);
+    if(typeof data.position_name!=='string') throw new Error('position_name 必须是字符串');
+    for(const key of ['responsibilities','core_requirements','must_haves','nice_to_haves','tech_skills','business_skills'])
+      if(!Array.isArray(data[key])) throw new Error(key+' 必须是数组');
+    data.core_requirements.forEach((item,i)=>{
+      if(!item||typeof item.ability!=='string'||typeof item.text!=='string'||typeof item.priority!=='string')
+        throw new Error('core_requirements 第 '+(i+1)+' 项必须含 ability、text、priority 字符串');
+    });
+    return data;
+  }
+  async function callLLM(messages,schema){
+    const apiKey=storage.getItem(KEY_API);
+    if(!apiKey) throw new Error('请先在右上角「设置」中填写 DeepSeek API Key');
+    const requestMessages=[...messages];
+    const schemaInstruction='输出必须符合以下 JSON 字段结构（仅作字段约束）：\n'+JSON.stringify(schema);
+    if(requestMessages[0]?.role==='system') requestMessages[0]={...requestMessages[0],content:requestMessages[0].content+'\n\n'+schemaInstruction};
+    else requestMessages.unshift({role:'system',content:schemaInstruction});
+    const response=await fetch('https://api.deepseek.com/chat/completions',{
+      method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({model:'deepseek-chat',messages:requestMessages,response_format:{type:'json_object'},stream:false})
+    });
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(payload.error?.message||('DeepSeek 请求失败（HTTP '+response.status+'）'));
+    const content=payload.choices?.[0]?.message?.content;
+    if(!content) throw new Error('模型没有返回内容');
+    return JSON.parse(content);
+  }
+  function renderJDNode(node){
+    document.getElementById('jdNode').hidden=false;
+    document.getElementById('jdNodeSummary').textContent=node.summary||'—';
+    document.getElementById('jdNodeDuration').textContent=typeof node.duration==='number'?node.duration+' ms':'—';
+    document.getElementById('jdNodeJson').textContent=JSON.stringify(node.output,null,2);
+  }
+  async function parseJD(){
+    const jd=document.getElementById('jdInput').value;
+    if(!jd.trim()){document.getElementById('jdStatus').textContent='请先粘贴 JD 原文';return}
+    saveJDInput();
+    const btn=document.getElementById('btnParseJD'), status=document.getElementById('jdStatus');
+    btn.disabled=true;status.textContent='正在解析…';
+    const started=performance.now();
+    const systemPrompt='你是严谨的 JD 解析助手。只提取原文明确表达的信息，不得凭空增加 JD 中不存在的硬性要求，不得把推断写成事实。不确定的核心要求必须将 priority 标记为“待确认”。core_requirements 每项包含 ability、text、priority；priority 使用“必须”“优先”或“待确认”。所有列表字段在无内容时返回空数组，position_name 不明确时返回空字符串。应用会在本地逐字保留完整原始 JD；不要改写或补全原文内容。只返回 JSON。';
+    try{
+      const parsed=validateJDResult(await callLLM([{role:'system',content:systemPrompt},{role:'user',content:'请解析以下 JD。\n\n--- JD 原文开始 ---\n'+jd+'\n--- JD 原文结束 ---'}],JD_SCHEMA));
+      const duration=Math.round(performance.now()-started);
+      const node={summary:jd.replace(/\s+/g,' ').slice(0,260)+(jd.length>260?'…':''),duration,output:parsed};
+      const record={...lsGet(KEY_JD,{}),jd,result:parsed,node};
+      lsSet(KEY_JD,record);
+      document.getElementById('jdOutput').value=JSON.stringify(parsed,null,2);
+      renderJDNode(node);status.textContent='解析完成 · '+duration+' ms';
+      renderStats();
+    }catch(err){status.textContent=err.message||'解析失败';}
+    finally{btn.disabled=false}
+  }
+  function saveJDResult(){
+    try{
+      const parsed=validateJDResult(JSON.parse(document.getElementById('jdOutput').value));
+      const saved=lsGet(KEY_JD,{});saved.result=parsed;
+      if(saved.node){saved.node.output=parsed;renderJDNode(saved.node)}
+      lsSet(KEY_JD,saved);
+      document.getElementById('jdEditStatus').textContent='修改已保存到本机';
+    }catch(err){document.getElementById('jdEditStatus').textContent='无法保存：'+err.message;}
+  }
+
   /* ---------- 事件绑定 ---------- */
   document.querySelectorAll('.tab:not(.disabled)').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
   document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>gotoPage(b.dataset.goto)));
@@ -455,11 +571,15 @@
     renderSetting(); document.getElementById('maskSetting').classList.add('show');
   });
   document.getElementById('btnSaveKey').addEventListener('click',saveKey);
+  document.getElementById('jdInput').addEventListener('input',()=>{saveJDInput();document.getElementById('jdStatus').textContent='原始 JD 已保存到本机'});
+  document.getElementById('btnParseJD').addEventListener('click',parseJD);
+  document.getElementById('btnSaveJDResult').addEventListener('click',saveJDResult);
 
   /* ---------- 初始化 ---------- */
   renderStats();
   renderExperiences();
   renderSetting();
+  loadJDView();
 </script>
 </body>
 </html>
