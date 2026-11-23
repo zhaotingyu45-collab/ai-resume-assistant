@@ -151,6 +151,41 @@
   .badge.ai-src{background:var(--brand-soft);color:var(--brand)}
   .badge.user-src{background:var(--none-soft);color:var(--none)}
 
+  /* 阶段 2 · 匹配分析页（信息密度优先，表格不做卡片化） */
+  .match-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;background:var(--surface);
+    border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+  .match-toolbar .fld{flex:1;min-width:220px}
+  .match-toolbar label{margin-bottom:4px}
+  .summary-strip{display:flex;gap:22px;flex-wrap:wrap;font-size:12px;color:var(--text-2);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px}
+  .summary-strip b{color:var(--text);font-size:14px;font-weight:600;margin-right:3px}
+  .summary-strip .s-ok b{color:var(--ok)} .summary-strip .s-wait b{color:var(--warn)} .summary-strip .s-none b{color:var(--none)}
+  .match-table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:auto}
+  table.match-table{border-collapse:collapse;width:100%;font-size:12px;table-layout:fixed}
+  .match-table th{text-align:left;padding:10px 12px;background:var(--bg);color:var(--text-2);font-weight:600;
+    border-bottom:1px solid var(--line-strong);white-space:nowrap}
+  .match-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-word}
+  .match-table tr:last-child td{border-bottom:none}
+  .match-table col.c-ability{width:20%} .match-table col.c-exp{width:15%}
+  .match-table col.c-evidence{width:30%} .match-table col.c-status{width:14%} .match-table col.c-reason{width:21%}
+  .match-table .cell-ability{font-weight:600}
+  .match-table .cell-evidence{color:var(--text-2);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px}
+  .match-table .cell-reason{color:var(--text-2)}
+  .no-evidence{color:var(--text-3);font-style:italic}
+  .status-tag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .status-tag.st-ok{background:var(--ok-soft);color:var(--ok)}
+  .status-tag.st-wait{background:var(--warn-soft);color:var(--warn)}
+  .status-tag.st-none{background:var(--none-soft);color:var(--none)}
+  .gap-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-top:12px}
+  .gap-box h2{font-size:15px;margin-bottom:4px}
+  .gap-item{padding:10px 0;border-bottom:1px solid var(--line)}
+  .gap-item:last-child{border-bottom:none}
+  .gap-item .g-ability{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .gap-item .g-question{font-size:12px;color:var(--text-2);margin-top:4px}
+  .match-nodes{margin-top:12px}
+  .match-nodes details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px}
+  .match-nodes summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--brand)}
+
   .foot-note{max-width:1040px;margin:0 auto;padding:0 28px 32px;font-size:11px;color:var(--text-3)}
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.entry-grid{grid-template-columns:1fr}
     .form-grid{grid-template-columns:1fr}main{padding:18px}}
@@ -173,7 +208,7 @@
   <button class="tab active" data-tab="dashboard">工作台</button>
   <button class="tab" data-tab="experience">经历库</button>
   <button class="tab" data-tab="jd">JD 分析</button>
-  <button class="tab disabled" title="后续阶段实现">匹配分析</button>
+  <button class="tab" data-tab="match">匹配分析</button>
   <button class="tab disabled" title="后续阶段实现">简历生成</button>
 </div>
 
@@ -189,9 +224,9 @@
         <span class="idx">1</span>
         <span><span class="t">进入个人经历库</span><span class="d">新增 / 编辑经历，AI 提取后由你确认</span></span>
       </button>
-      <button class="entry soon">
+      <button class="entry" data-goto="match">
         <span class="idx">2</span>
-        <span><span class="t">开始岗位匹配</span><span class="d">Prompt 2 完成后开放：经历证据匹配</span></span>
+        <span><span class="t">开始岗位匹配</span><span class="d">选择已解析 JD，查看能力证据与缺口</span></span>
       </button>
       <button class="entry soon">
         <span class="idx">3</span>
@@ -244,13 +279,36 @@
     </div>
   </section>
 
-  <!-- 页面 4：匹配分析（占位，Prompt 2 实现） -->
+  <!-- 页面 4：匹配分析（阶段 2 实现） -->
   <section class="page" id="page-match">
-    <div class="page-head"><div><h1>匹配分析</h1><div class="hint">作品集主图：展示 AI 为什么匹配 / 不匹配</div></div></div>
-    <div class="placeholder">
-      <div class="tagline">PROMPT 2 · 核心页面</div>
-      <h2>五列证据表将在这里实现</h2>
-      <p>按开发手册第 6 节：JD 能力要求 | 匹配经历 | 证据原文 | 状态 | 判断理由。证据必须引用原文，无引用写“无引用”；缺口区给具体补充提问；节点详情可展开。不要用卡片替代表格。</p>
+    <div class="page-head">
+      <div><h1>匹配分析</h1><div class="hint">只用「已确认」的经历与标签做证据；每条结论必须能追溯到经历原文</div></div>
+    </div>
+    <div class="match-toolbar">
+      <div class="fld"><label>目标 JD</label><select id="matchJdSelect"></select></div>
+      <button class="primary" id="btnRunMatch">重新匹配</button>
+      <button id="btnGotoExp">+ 补充经历</button>
+      <span class="jd-status" id="matchStatus"></span>
+    </div>
+    <div class="summary-strip" id="matchSummary"><span>尚未匹配。选择 JD 后点「重新匹配」。</span></div>
+    <div class="match-table-wrap" id="matchTableWrap" hidden>
+      <table class="match-table">
+        <colgroup><col class="c-ability"><col class="c-exp"><col class="c-evidence"><col class="c-status"><col class="c-reason"></colgroup>
+        <thead><tr><th>JD 能力要求</th><th>匹配经历</th><th>证据原文</th><th>状态</th><th>判断理由</th></tr></thead>
+        <tbody id="matchTableBody"></tbody>
+      </table>
+    </div>
+    <div class="gap-box" id="gapBox" hidden>
+      <h2>能力缺口 <span class="hint">（针对暂无证据 / 待确认的能力，给出可回答的具体提问）</span></h2>
+      <div id="gapList"></div>
+    </div>
+    <div class="match-nodes" id="matchNodes" hidden>
+      <details><summary>节点详情 · 经历匹配（节点 3）</summary>
+        <div class="node-meta"><div class="k">输入摘要</div><div id="m3Summary" class="node-summary"></div><div class="k">耗时</div><div id="m3Duration">—</div></div>
+        <pre id="m3Json" class="node-json"></pre></details>
+      <details><summary>节点详情 · 缺口识别（节点 4）</summary>
+        <div class="node-meta"><div class="k">输入摘要</div><div id="m4Summary" class="node-summary"></div><div class="k">耗时</div><div id="m4Duration">—</div></div>
+        <pre id="m4Json" class="node-json"></pre></details>
     </div>
   </section>
 
@@ -348,6 +406,11 @@
      extractExperience            —— 节点 1：经历结构化 + 能力标签生成
      renderSkillReview / confirmSkill / editSkill / deleteSkill / addManualSkill —— 标签审阅闸门
      parseJD / validateJDResult   —— 节点 2：JD 解析
+     loadJdOptions / runMatch     —— 阶段 2：JD 选择 + 触发匹配
+     confirmedMatchInput          —— 收集仅「已确认」经历与标签作为匹配输入
+     validateMatchResult / validateGapResult —— 节点 3/4 输出校验
+     enforceEvidenceOnMatches     —— 本地证据强校验（evidence 必须是经历原文子串）
+     renderMatch / renderGaps / renderMatchNodes —— 五列表格 / 缺口区 / 节点详情
    ============================================================ */
 
   const KEY_EXP = 'experiences';
@@ -412,6 +475,74 @@
 5. skills 中每项 status 固定为"待确认"，不得输出"已确认"。
 6. 职责强度词必须原样保留："参与"不得写成"主导"，"协助"不得写成"独立负责"。`;
 
+  const KEY_MATCH = 'matchResults';
+  const MATCH_SCHEMA = {
+    type:'object', additionalProperties:false,
+    properties:{
+      matches:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+        ability:{type:'string'},experience:{type:'string'},evidence:{type:'string'},
+        match_status:{type:'string'},reasoning:{type:'string'}},
+        required:['ability','experience','evidence','match_status','reasoning']}},
+      missing_abilities:{type:'array',items:{type:'string'}}
+    }, required:['matches','missing_abilities']
+  };
+  const GAP_SCHEMA = {
+    type:'object', additionalProperties:false,
+    properties:{
+      gaps:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+        ability:{type:'string'},gap_type:{type:'string'},question:{type:'string'}},
+        required:['ability','gap_type','question']}}
+    }, required:['gaps']
+  };
+  // PROMPTS.md 节点 3 · V1 全文
+  const PROMPT_MATCH = `你是岗位能力匹配助手。判断用户的已确认经历能否证明 JD 的每项能力要求。
+
+输入：JD 能力画像 + 用户已确认的经历列表。
+
+输出：只输出一个 JSON 对象：
+{
+  "matches": [
+    {
+      "ability": "JD 能力要求",
+      "experience": "匹配到的项目名称，无则输出空字符串",
+      "evidence": "来自经历原文的证据片段",
+      "match_status": "有直接证据|待确认|暂无证据",
+      "reasoning": "判断理由"
+    }
+  ],
+  "missing_abilities": ["暂无证据的能力要求"]
+}
+
+强约束：
+1. 每条结论必须给出 evidence，且 evidence 必须是经历原文中真实存在的连续片段；找不到原文依据时，match_status 必须为"暂无证据"，evidence 输出空字符串。
+2. 禁止仅凭关键词相似判定匹配；必须判断经历内容是否真正体现该能力。
+3. 禁止把"待确认"自动升级为"有直接证据"。
+4. 只能使用 confirmation_status 为"已确认"的经历与标签，待确认内容不得作为证据。
+5. 每项 ability 只能对应一个 match_status，不得模棱两可。`;
+  // PROMPTS.md 节点 4 · V1 全文
+  const PROMPT_GAP = `你是能力缺口分析助手。根据匹配结果，指出用户缺失或证据不足的能力。
+
+输入：JD 能力画像 + 节点 3 的匹配结果。
+
+输出：只输出一个 JSON 对象：
+{
+  "gaps": [
+    {
+      "ability": "缺失或证据不足的能力",
+      "gap_type": "暂无证据|待确认",
+      "question": "针对该缺口的具体补充提问"
+    }
+  ]
+}
+
+强约束：
+1. 只针对 match_status 为"暂无证据"或"待确认"的能力生成缺口，不得对"有直接证据"的能力提问。
+2. question 必须具体到用户能直接回答，例如"你参与 AI 音乐生成模块时是否做过效果评测？请描述评测方法"，禁止笼统地问"请补充相关经验"。
+3. 每条缺口只问一类信息，不要在一个问题里塞多个能力。
+4. missing_abilities 中的每个能力都必须出现在 gaps 中，不得遗漏。`;
+
+  const MATCH_STATUS = ['有直接证据','待确认','暂无证据'];
+
   let editingId = null;
   let draftSkills = [];  // 当前表单里待审阅的标签数组（含 label/evidence/status/source）
 
@@ -436,6 +567,7 @@
     if(name==='dashboard') renderStats();
     if(name==='experience') renderExperiences();
     if(name==='jd') loadJDView();
+    if(name==='match') loadMatchView();
   }
   function gotoPage(name){ switchTab(name) }
 
@@ -747,6 +879,7 @@
       const node={summary:jd.replace(/\s+/g,' ').slice(0,260)+(jd.length>260?'…':''),duration,output:parsed};
       const record={...lsGet(KEY_JD,{}),jd,result:parsed,node};
       lsSet(KEY_JD,record);
+      saveJDToLibrary(jd,parsed);
       document.getElementById('jdOutput').value=JSON.stringify(parsed,null,2);
       renderJDNode(node);status.textContent='解析完成 · '+duration+' ms';
       renderStats();
@@ -759,8 +892,177 @@
       const saved=lsGet(KEY_JD,{});saved.result=parsed;
       if(saved.node){saved.node.output=parsed;renderJDNode(saved.node)}
       lsSet(KEY_JD,saved);
+      if(saved.jd) saveJDToLibrary(saved.jd,parsed);
       document.getElementById('jdEditStatus').textContent='修改已保存到本机';
     }catch(err){document.getElementById('jdEditStatus').textContent='无法保存：'+err.message;}
+  }
+
+  /* ---------- 阶段 2：匹配分析（节点 3 + 节点 4） ---------- */
+  function saveJDToLibrary(jd, result){
+    const lib = lsGet('jds', []);
+    const name = (result && result.position_name) || ('未命名岗位 '+(lib.length+1));
+    const jdText = jd||'';
+    const idx = lib.findIndex(x=>x.jd===jdText);
+    const entry = {id: idx>=0?lib[idx].id:('jd_'+Date.now().toString(36)), position_name:name, jd:jdText, result:result, created_at:new Date().toISOString()};
+    if(idx>=0) lib[idx]=entry; else lib.unshift(entry);
+    lsSet('jds', lib);
+  }
+  function loadJdOptions(){
+    const lib = lsGet('jds', []);
+    const sel = document.getElementById('matchJdSelect');
+    sel.innerHTML = lib.length
+      ? lib.map((j,i)=>'<option value="'+i+'">'+esc(j.position_name)+'（'+esc((j.jd||'').replace(/\s+/g,' ').slice(0,28))+'…）'+'</option>').join('')
+      : '<option value="">（暂无已解析 JD，请先到「JD 分析」解析一个）</option>';
+  }
+  // 只收集「已确认」经历 + 每条经历里「已确认」的标签；待确认内容一律不进匹配
+  function confirmedMatchInput(){
+    const exps = loadExperiences().filter(e=>e.confirmation_status==='已确认');
+    const corpus = [];   // 已确认经历原文池，用于证据强校验
+    const expBriefs = exps.map(e=>{
+      const raw = [e.raw_text, e.project_background, e.user_problem, e.responsibilities,
+        e.actions, e.results].filter(Boolean).join('\n');
+      corpus.push(raw);
+      const okSkills = skillArray(e).filter(s=>s.status==='已确认').map(s=>s.label);
+      return {project_name:e.project_name, raw_text:raw, confirmed_skills:okSkills};
+    });
+    return {exps, expBriefs, corpus};
+  }
+  function validateMatchResult(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    for(const key of MATCH_SCHEMA.required) if(!(key in data)) throw new Error('缺少字段：'+key);
+    if(!Array.isArray(data.matches)) throw new Error('matches 必须是数组');
+    if(!Array.isArray(data.missing_abilities)) throw new Error('missing_abilities 必须是数组');
+    data.matches.forEach((m,i)=>{
+      for(const k of ['ability','experience','evidence','match_status','reasoning'])
+        if(typeof m?.[k]!=='string') throw new Error('matches 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+      if(MATCH_STATUS.indexOf(m.match_status)===-1) throw new Error('matches 第 '+(i+1)+' 项状态非法');
+    });
+    return data;
+  }
+  function validateGapResult(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    if(!Array.isArray(data.gaps)) throw new Error('gaps 必须是数组');
+    data.gaps.forEach((g,i)=>{
+      for(const k of ['ability','gap_type','question'])
+        if(typeof g?.[k]!=='string') throw new Error('gaps 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+      if(g.gap_type!=='暂无证据' && g.gap_type!=='待确认') throw new Error('gaps 第 '+(i+1)+' 项 gap_type 非法');
+    });
+    return data;
+  }
+  // 本地强校验：evidence 必须是某条已确认经历原文的子串；否则降级（不信任模型自律）
+  function enforceEvidenceOnMatches(matches, corpus, exps){
+    const corpusText = corpus.join('\n');
+    const names = exps.map(e=>e.project_name);
+    return matches.map(m=>{
+      const out = Object.assign({}, m);
+      if(out.match_status==='有直接证据'){
+        if(!out.evidence || corpusText.indexOf(out.evidence)===-1){
+          out.evidence=''; out.match_status='暂无证据';
+          out.reasoning = (out.reasoning||'')+' [本地校验：证据非经历原文，已降级]';
+        }
+        // 匹配到的项目名必须存在于已确认经历
+        if(out.experience && names.indexOf(out.experience)===-1){
+          out.experience=''; out.evidence=''; out.match_status='暂无证据';
+          out.reasoning = (out.reasoning||'')+' [本地校验：项目名不在已确认经历，已降级]';
+        }
+      }
+      if(out.match_status==='暂无证据') out.evidence='';
+      return out;
+    });
+  }
+  function renderMatch(record){
+    document.getElementById('matchSummary').innerHTML = [
+      '<span>能力总数 <b>'+record.matches.length+'</b></span>',
+      '<span class="s-ok">有直接证据 <b>'+record.matches.filter(m=>m.match_status==='有直接证据').length+'</b></span>',
+      '<span class="s-wait">待确认 <b>'+record.matches.filter(m=>m.match_status==='待确认').length+'</b></span>',
+      '<span class="s-none">暂无证据 <b>'+record.matches.filter(m=>m.match_status==='暂无证据').length+'</b></span>',
+      '<span>生成于 '+esc(record.created_at||'')+'</span>'
+    ].join('');
+    const stCls = {'有直接证据':'st-ok','待确认':'st-wait','暂无证据':'st-none'};
+    const body = record.matches.map(m=>
+      '<tr><td class="cell-ability">'+esc(m.ability)+'</td>'+
+      '<td>'+esc(m.experience||'—')+'</td>'+
+      '<td class="cell-evidence">'+(m.evidence?esc(m.evidence):'<span class="no-evidence">无引用</span>')+'</td>'+
+      '<td><span class="status-tag '+stCls[m.match_status]+'">'+m.match_status+'</span></td>'+
+      '<td class="cell-reason">'+esc(m.reasoning||'—')+'</td></tr>').join('');
+    document.getElementById('matchTableBody').innerHTML = body;
+    document.getElementById('matchTableWrap').hidden = false;
+
+    const gaps = record.gaps||[];
+    document.getElementById('gapList').innerHTML = gaps.length
+      ? gaps.map(g=>'<div class="gap-item"><div class="g-ability">'+esc(g.ability)+
+          ' <span class="status-tag '+(g.gap_type==='待确认'?'st-wait':'st-none')+'">'+g.gap_type+'</span></div>'+
+          '<div class="g-question">补充提问：'+esc(g.question)+'</div></div>').join('')
+      : '<div class="hint">暂无能力缺口。</div>';
+    document.getElementById('gapBox').hidden = false;
+
+    const nodes = record.nodes||{};
+    document.getElementById('matchNodes').hidden = false;
+    document.getElementById('m3Summary').textContent = nodes.m3?.summary||'—';
+    document.getElementById('m3Duration').textContent = typeof nodes.m3?.duration==='number'?nodes.m3.duration+' ms':'—';
+    document.getElementById('m3Json').textContent = JSON.stringify(nodes.m3?.output||{},null,2);
+    document.getElementById('m4Summary').textContent = nodes.m4?.summary||'—';
+    document.getElementById('m4Duration').textContent = typeof nodes.m4?.duration==='number'?nodes.m4.duration+' ms':'—';
+    document.getElementById('m4Json').textContent = JSON.stringify(nodes.m4?.output||{},null,2);
+  }
+  function loadMatchView(){
+    loadJdOptions();
+    const last = lsGet(KEY_MATCH, null);
+    if(last && last.jdId !== undefined){ renderMatch(last); document.getElementById('matchStatus').textContent='已载入上次匹配结果'; }
+  }
+  async function runMatch(){
+    const lib = lsGet('jds', []);
+    const jdIdx = document.getElementById('matchJdSelect').value;
+    const status = document.getElementById('matchStatus');
+    const btn = document.getElementById('btnRunMatch');
+    if(jdIdx==='' || !lib[+jdIdx]){ status.textContent='请先到「JD 分析」解析一个 JD'; return }
+    const jdItem = lib[+jdIdx];
+    const abilities = (jdItem.result?.core_requirements||[]).map(r=>r.ability).filter(Boolean);
+    if(!abilities.length){ status.textContent='该 JD 没有可匹配的能力要求，请先在 JD 分析页补充'; return }
+    const {expBriefs, corpus, exps} = confirmedMatchInput();
+    if(!exps.length){ status.textContent='没有「已确认」的经历，请先在经历库确认至少一条经历'; return }
+    btn.disabled=true; status.textContent='正在匹配…';
+
+    const jdProfile = {position_name:jdItem.position_name, core_requirements:jdItem.result.core_requirements,
+      must_haves:jdItem.result.must_haves||[], tech_skills:jdItem.result.tech_skills||[], business_skills:jdItem.result.business_skills||[]};
+    const m3Input = {jd_profile:jdProfile, confirmed_experiences:expBriefs};
+    try{
+      const t3=performance.now();
+      const r3 = validateMatchResult(await callLLM([
+        {role:'system',content:PROMPT_MATCH},
+        {role:'user',content:'请匹配。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+          '\n\n--- 已确认经历（仅这些可用作证据） ---\n'+JSON.stringify(expBriefs,null,2)}
+      ], MATCH_SCHEMA));
+      const d3=Math.round(performance.now()-t3);
+      // 本地证据强校验
+      r3.matches = enforceEvidenceOnMatches(r3.matches, corpus, exps);
+      // 保证每个能力都有一行（缺失的补暂无证据）
+      abilities.forEach(a=>{ if(!r3.matches.some(m=>m.ability===a))
+        r3.matches.push({ability:a,experience:'',evidence:'',match_status:'暂无证据',reasoning:'模型未输出该能力，本地补暂无证据'}); });
+
+      const t4=performance.now();
+      const r4 = validateGapResult(await callLLM([
+        {role:'system',content:PROMPT_GAP},
+        {role:'user',content:'请识别缺口。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+          '\n\n--- 节点3 匹配结果 ---\n'+JSON.stringify({matches:r3.matches,missing_abilities:r3.missing_abilities},null,2)}
+      ], GAP_SCHEMA));
+      const d4=Math.round(performance.now()-t4);
+      // 缺口覆盖校验：missing_abilities 中每项都要出现在 gaps
+      const gapAbilities = r4.gaps.map(g=>g.ability);
+      r3.missing_abilities.forEach(a=>{ if(!gapAbilities.includes(a))
+        r4.gaps.push({ability:a,gap_type:'暂无证据',question:'请补充一段能证明「'+a+'」的真实经历，描述你具体做了什么'}); });
+
+      const record = {jdId:+jdIdx, position_name:jdItem.position_name,
+        matches:r3.matches, missing_abilities:r3.missing_abilities, gaps:r4.gaps,
+        nodes:{m3:{summary:JSON.stringify(m3Input).replace(/\s+/g,' ').slice(0,300),duration:d3,output:r3},
+               m4:{summary:'JD 能力 '+abilities.length+' 项 + 节点3匹配 '+r3.matches.length+' 条',duration:d4,output:r4}},
+        created_at:new Date().toLocaleString('zh-CN')};
+      lsSet(KEY_MATCH, record);
+      renderMatch(record);
+      status.textContent='匹配完成 · 节点3 '+d3+' ms / 节点4 '+d4+' ms';
+      console.log('[阶段2 匹配]', record);
+    }catch(err){ status.textContent='匹配失败：'+(err.message||'未知错误'); }
+    finally{ btn.disabled=false }
   }
 
   /* ---------- 事件绑定 ---------- */
@@ -783,12 +1085,15 @@
   document.getElementById('jdInput').addEventListener('input',()=>{saveJDInput();document.getElementById('jdStatus').textContent='原始 JD 已保存到本机'});
   document.getElementById('btnParseJD').addEventListener('click',parseJD);
   document.getElementById('btnSaveJDResult').addEventListener('click',saveJDResult);
+  document.getElementById('btnRunMatch').addEventListener('click',runMatch);
+  document.getElementById('btnGotoExp').addEventListener('click',()=>gotoPage('experience'));
 
   /* ---------- 初始化 ---------- */
   renderStats();
   renderExperiences();
   renderSetting();
   loadJDView();
+  loadJdOptions();
 </script>
 </body>
 </html>
