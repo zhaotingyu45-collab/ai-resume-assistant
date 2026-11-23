@@ -186,6 +186,44 @@
   .match-nodes details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px}
   .match-nodes summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--brand)}
 
+  /* 阶段 3：简历生成 + 事实校验 */
+  .resume-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .resume-toolbar .fld{display:flex;flex-direction:column;gap:4px}
+  .resume-toolbar .fld select{width:260px}
+  .resume-risk-strip{display:flex;gap:20px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text-2);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px 16px;margin-bottom:12px}
+  .resume-risk-strip b{font-size:14px;margin-right:3px}
+  .rr-high b{color:var(--danger)} .rr-mid b{color:var(--warn)} .rr-low b{color:var(--none)}
+  .rr-gate{margin-left:auto;font-weight:600}
+  .rr-gate.blocked{color:var(--danger)} .rr-gate.pass{color:var(--ok)}
+  .resume-layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;align-items:start}
+  .resume-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .resume-panel h2{font-size:15px;margin-bottom:2px}
+  .resume-panel .panel-hint{font-size:12px;color:var(--text-3);margin-bottom:12px}
+  .resume-field{margin-bottom:12px;position:relative}
+  .resume-field .rf-label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);margin-bottom:4px;font-weight:600}
+  .resume-field textarea,.resume-field input{font-size:13px}
+  .resume-field.has-risk textarea,.resume-field.has-risk input{border-color:var(--danger);background:var(--danger-soft)}
+  .resume-field .rf-risk{font-size:11px;color:var(--danger);margin-top:4px}
+  .resume-project{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px}
+  .resume-project .rp-head{font-size:13px;font-weight:600;color:var(--brand);margin-bottom:8px;display:flex;justify-content:space-between}
+  .resume-skills input{width:100%}
+  .risk-item{border-left:3px solid var(--line-strong);padding:10px 12px;margin-bottom:8px;background:var(--bg);border-radius:0 7px 7px 0}
+  .risk-item.lv-高{border-left-color:var(--danger);background:var(--danger-soft)}
+  .risk-item.lv-中{border-left-color:var(--warn);background:var(--warn-soft)}
+  .risk-item.lv-低{border-left-color:var(--none);background:var(--none-soft)}
+  .risk-item .ri-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex-wrap:wrap}
+  .risk-item .ri-type{font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+  .risk-item .ri-src{font-size:10px;color:var(--text-3)}
+  .risk-item .ri-content{font-size:12px;margin-top:5px;color:var(--text)}
+  .risk-item .ri-evidence{font-size:11px;color:var(--text-2);margin-top:4px}
+  .risk-item .ri-suggest{font-size:12px;color:var(--brand);margin-top:5px}
+  .resume-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .resume-actions .hint{color:var(--text-3)}
+  .resume-preview{white-space:pre-wrap;font-size:12px;line-height:1.7;background:var(--bg);
+    border:1px solid var(--line);border-radius:7px;padding:12px;max-height:320px;overflow:auto;color:var(--text)}
+  @media(max-width:900px){.resume-layout{grid-template-columns:1fr}}
+
   .foot-note{max-width:1040px;margin:0 auto;padding:0 28px 32px;font-size:11px;color:var(--text-3)}
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.entry-grid{grid-template-columns:1fr}
     .form-grid{grid-template-columns:1fr}main{padding:18px}}
@@ -209,7 +247,7 @@
   <button class="tab" data-tab="experience">经历库</button>
   <button class="tab" data-tab="jd">JD 分析</button>
   <button class="tab" data-tab="match">匹配分析</button>
-  <button class="tab disabled" title="后续阶段实现">简历生成</button>
+  <button class="tab" data-tab="resume">简历生成</button>
 </div>
 
 <main>
@@ -228,9 +266,9 @@
         <span class="idx">2</span>
         <span><span class="t">开始岗位匹配</span><span class="d">选择已解析 JD，查看能力证据与缺口</span></span>
       </button>
-      <button class="entry soon">
+      <button class="entry" data-goto="resume">
         <span class="idx">3</span>
-        <span><span class="t">生成定向简历</span><span class="d">Prompt 3 完成后开放：简历生成与事实校验</span></span>
+        <span><span class="t">生成定向简历</span><span class="d">按岗位组织经历，逐条事实校验</span></span>
       </button>
       <button class="entry soon">
         <span class="idx">4</span>
@@ -312,18 +350,52 @@
     </div>
   </section>
 
-  <!-- 页面 5：简历生成（占位，Prompt 3 实现） -->
+  <!-- 页面 5：简历生成（阶段 3 实现） -->
   <section class="page" id="page-resume">
-    <div class="page-head"><div><h1>简历生成</h1><div class="hint">基于已确认经历定向生成</div></div></div>
-    <div class="placeholder">
-      <div class="tagline">PROMPT 3</div>
-      <h2>简历生成 + 事实校验将在这里实现</h2>
-      <p>左侧简历预览可编辑，右侧事实风险列表。高风险阻止确认，中风险提示核实。禁止把“参与”写成“主导”、把待确认写成事实。</p>
+    <div class="page-head">
+      <div><h1>简历生成</h1><div class="hint">只用已确认经历生成；生成后再做事实校验，逐条对照原文</div></div>
+      <button class="primary" id="btnGenResume">✦ 生成定向简历</button>
+    </div>
+    <div class="resume-toolbar">
+      <div class="fld"><label>目标 JD</label><select id="resumeJdSelect"></select></div>
+      <span class="jd-status" id="resumeStatus"></span>
+    </div>
+    <div class="resume-risk-strip" id="resumeRiskStrip"><span>尚未生成简历。选择 JD 后点「生成定向简历」。</span></div>
+    <div class="resume-layout" id="resumeLayout" hidden>
+      <div class="resume-panel">
+        <h2>岗位定向简历 <span class="hint">（可直接编辑，改后点「重新校验」）</span></h2>
+        <div class="panel-hint">生成内容必须能追溯到已确认经历；每项若被判高风险会标红，改完记得重新校验。</div>
+        <div id="resumeFields"></div>
+        <div class="resume-field"><div class="rf-label">能力标签（逗号分隔，仅已确认）</div>
+          <input id="resumeSkills" class="resume-skills"></div>
+        <div class="resume-actions">
+          <button id="btnRecheckResume">重新校验（本地）</button>
+          <button class="primary" id="btnSaveResume">确认并保存版本</button>
+          <span class="hint" id="resumeSaveStatus"></span>
+        </div>
+      </div>
+      <div class="resume-panel">
+        <h2>事实校验 <span class="hint">（模型标注 + 本地强校验）</span></h2>
+        <div class="panel-hint">高=与原文冲突或凭空编造；中=缺原文依据；低=仅表达优化。校验只标注、不改简历，最终由你决定。</div>
+        <div id="riskList"><div class="hint">生成简历后显示风险清单。</div></div>
+        <details id="resumePreviewBox" style="margin-top:12px">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--brand)">纯文本预览（复制用）</summary>
+          <div class="resume-preview" id="resumePreview" style="margin-top:8px"></div>
+        </details>
+      </div>
+    </div>
+    <div class="match-nodes" id="resumeNodes" hidden>
+      <details><summary>节点详情 · 简历生成（节点 5）</summary>
+        <div class="node-meta"><div class="k">输入摘要</div><div id="m5Summary" class="node-summary"></div><div class="k">耗时</div><div id="m5Duration">—</div></div>
+        <pre id="m5Json" class="node-json"></pre></details>
+      <details><summary>节点详情 · 事实校验（节点 6）</summary>
+        <div class="node-meta"><div class="k">输入摘要</div><div id="m6Summary" class="node-summary"></div><div class="k">耗时</div><div id="m6Duration">—</div></div>
+        <pre id="m6Json" class="node-json"></pre></details>
     </div>
   </section>
 </main>
 
-<div class="foot-note">个人 Demo · 原文 / JD / 经历数据保存在本机浏览器 · 点击「AI 解析抽取」或「解析 JD」时，原文或 JD 与 API Key 会发送至 DeepSeek · 无真实用户与上线数据</div>
+<div class="foot-note">个人 Demo · 原文 / JD / 经历数据保存在本机浏览器 · 点击「AI 解析抽取」「解析 JD」「重新匹配」或「生成定向简历」时，原文 / JD / 能力画像与 API Key 会发送至 DeepSeek · 无真实用户与上线数据</div>
 
 <!-- 经历表单弹窗 -->
 <div class="modal-mask" id="maskForm">
@@ -411,6 +483,8 @@
      validateMatchResult / validateGapResult —— 节点 3/4 输出校验
      enforceEvidenceOnMatches     —— 本地证据强校验（evidence 必须是经历原文子串）
      renderMatch / renderGaps / renderMatchNodes —— 五列表格 / 缺口区 / 节点详情
+     resumeSource / localFactCheck    —— 阶段3：已确认材料收集 + 本地事实强校验
+     runGenResume / recheckResume / saveResumeVersion —— 节点5+6 生成 / 复检 / 高风险闸门保存
    ============================================================ */
 
   const KEY_EXP = 'experiences';
@@ -541,7 +615,85 @@
 3. 每条缺口只问一类信息，不要在一个问题里塞多个能力。
 4. missing_abilities 中的每个能力都必须出现在 gaps 中，不得遗漏。`;
 
+  /* ---------- 阶段 3：简历生成 + 事实校验（节点 5 + 节点 6） ---------- */
+  const KEY_RESUME = 'resumeVersions';
+  const RESUME_SCHEMA = {
+    type:'object', additionalProperties:false,
+    properties:{
+      summary:{type:'string'},
+      projects:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+        project_name:{type:'string'},background:{type:'string'},responsibilities:{type:'string'},
+        actions:{type:'string'},results:{type:'string'}},
+        required:['project_name','background','responsibilities','actions','results']}},
+      skills:{type:'array',items:{type:'string'}}
+    }, required:['summary','projects','skills']
+  };
+  const VALIDATE_SCHEMA = {
+    type:'object', additionalProperties:false,
+    properties:{
+      risk_level:{type:'string'},
+      risk_items:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+        content:{type:'string'},risk_type:{type:'string'},level:{type:'string'},
+        original_evidence:{type:'string'},suggestion:{type:'string'}},
+        required:['content','risk_type','level','original_evidence','suggestion']}}
+    }, required:['risk_level','risk_items']
+  };
+  // PROMPTS.md 节点 5 · V1 全文（唯一真相源）
+  const PROMPT_RESUME = `你是岗位定向简历生成助手。基于用户已确认的经历和 JD 能力画像，生成针对性简历。
+
+输入：JD 能力画像 + 用户已确认的经历 + 匹配结果。
+
+输出：只输出一个 JSON 对象：
+{
+  "summary": "与岗位相关的个人概述，仅使用已确认信息",
+  "projects": [
+    {
+      "project_name": "与原始经历完全一致",
+      "background": "项目背景",
+      "responsibilities": "个人职责，保留原职责强度",
+      "actions": "具体行动",
+      "results": "仅使用原文提供的结果"
+    }
+  ],
+  "skills": ["只使用已确认的能力标签"]
+}
+
+强约束：
+1. 只能使用已确认的经历、标签和信息，禁止使用任何待确认内容。
+2. 不得编造项目背景、个人职责、量化数据或成果；原文没有的结果留空。
+3. 不得把"参与"写成"主导"、"协助"写成"独立负责"，职责强度词与原文保持一致。
+4. 项目名称必须与原文完全一致。
+5. 根据匹配结果调整项目顺序，把有直接证据的项目排在前面。
+6. 不得为了贴合 JD 而新增原文不存在的能力标签。`;
+  // PROMPTS.md 节点 6 · V1 全文
+  const PROMPT_VALIDATE = `你是简历事实校验助手。对照用户原始经历，检查生成简历是否存在事实越界。
+
+输入：用户原始经历（含原文与标签）+ 生成的简历。
+
+输出：只输出一个 JSON 对象：
+{
+  "risk_level": "高|中|低",
+  "risk_items": [
+    {
+      "content": "存在风险的表述",
+      "risk_type": "职责夸大|虚构数据|项目名不一致|新增未提供内容|待确认写成事实",
+      "level": "高|中|低",
+      "original_evidence": "对应的原始经历片段，无则输出空字符串",
+      "suggestion": "修改建议"
+    }
+  ]
+}
+
+强约束：
+1. 逐项对照原文检查：项目名一致性、职责一致性、是否新增未提供内容、是否虚构数据、职责强度是否被夸大、待确认是否被写成事实。
+2. 风险分级：高=明确与原文冲突或凭空编造；中=缺少原文依据但无明显冲突；低=仅表达优化。
+3. 每项风险必须给出 original_evidence；找不到时输出空字符串，不得编造证据。
+4. 只标注风险，不得直接改写简历内容，修改建议写进 suggestion。
+5. 不得因为表述好看而降低风险等级。
+6. 你的判断不能保证绝对正确，最终以用户人工审核为准。`;
+
   const MATCH_STATUS = ['有直接证据','待确认','暂无证据'];
+  const RISK_LEVELS = ['高','中','低'];
 
   let editingId = null;
   let draftSkills = [];  // 当前表单里待审阅的标签数组（含 label/evidence/status/source）
@@ -568,6 +720,7 @@
     if(name==='experience') renderExperiences();
     if(name==='jd') loadJDView();
     if(name==='match') loadMatchView();
+    if(name==='resume') loadResumeView();
   }
   function gotoPage(name){ switchTab(name) }
 
@@ -1065,6 +1218,293 @@
     finally{ btn.disabled=false }
   }
 
+  /* ---------- 阶段 3：简历生成 + 事实校验 ---------- */
+  // 收集可进入简历的「已确认」材料；返回按项目名索引的原文/字段/已确认标签
+  function resumeSource(){
+    const exps = loadExperiences().filter(e=>e.confirmation_status==='已确认');
+    const byName = {};
+    const confirmedSkillSet = new Set();
+    let allRaw = '';
+    exps.forEach(e=>{
+      const raw = [e.raw_text,e.project_background,e.user_problem,e.responsibilities,
+        e.actions,e.results].filter(Boolean).join('\n');
+      allRaw += '\n'+raw;
+      const okSkills = skillArray(e).filter(s=>s.status==='已确认').map(s=>s.label);
+      okSkills.forEach(s=>confirmedSkillSet.add(s));
+      byName[e.project_name] = {raw, fields:e, confirmedSkills:okSkills};
+    });
+    return {exps, byName, confirmedSkillSet, allRaw};
+  }
+  function validateResumeResult(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    for(const k of RESUME_SCHEMA.required) if(!(k in data)) throw new Error('缺少字段：'+k);
+    if(typeof data.summary!=='string'||!Array.isArray(data.projects)||!Array.isArray(data.skills))
+      throw new Error('summary/projects/skills 类型错误');
+    data.projects.forEach((p,i)=>{
+      for(const k of ['project_name','background','responsibilities','actions','results'])
+        if(typeof p?.[k]!=='string') throw new Error('projects 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+    });
+    if(data.skills.some(s=>typeof s!=='string')) throw new Error('skills 必须是字符串数组');
+    return data;
+  }
+  function validateValidateResult(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    for(const k of VALIDATE_SCHEMA.required) if(!(k in data)) throw new Error('缺少字段：'+k);
+    if(RISK_LEVELS.indexOf(data.risk_level)===-1) throw new Error('risk_level 非法');
+    if(!Array.isArray(data.risk_items)) throw new Error('risk_items 必须是数组');
+    data.risk_items.forEach((r,i)=>{
+      for(const k of ['content','risk_type','level','original_evidence','suggestion'])
+        if(typeof r?.[k]!=='string') throw new Error('risk_items 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+      if(RISK_LEVELS.indexOf(r.level)===-1) throw new Error('risk_items 第 '+(i+1)+' 项 level 非法');
+    });
+    return data;
+  }
+  // 本地事实强校验：不信任模型自律，按硬规则复查（可直接对编辑后的简历重跑）
+  // 返回风险数组，字段与节点 6 一致，另加 source:'本地'
+  function localFactCheck(resume, src){
+    const risks = [];
+    const push = (content,risk_type,level,original_evidence,suggestion)=>
+      risks.push({content,risk_type,level,original_evidence,suggestion,source:'本地'});
+    const hasNum = s => /\d+(?:\.\d+)?\s*(?:%|％|倍|万|千|元|分|个点|人次|人|个)/.test(s||'');
+    // 强度词夸大检测：原文"参与/协助"与生成"主导/独立负责"冲突
+    const strong = /(主导|独立负责|牵头|负责整个|从\s*0\s*到\s*1|全权)/;
+    const weak = /(参与|协助|配合)/;
+    resume.projects.forEach(p=>{
+      const s = src.byName[p.project_name];
+      if(!s){
+        push('项目「'+p.project_name+'」不在已确认经历中','项目名不一致','高','',
+          '删除该项目，或先到经历库补录并确认这段经历');
+        return;
+      }
+      const genText = [p.responsibilities,p.actions].filter(Boolean).join('；');
+      if(weak.test(s.fields.responsibilities||'') && strong.test(genText))
+        push('「'+p.project_name+'」职责被写成强主导（'+p.responsibilities.slice(0,40)+'）',
+          '职责夸大','高',s.fields.responsibilities||s.fields.raw_text.slice(0,80),
+          '改回原文强度，如「参与」「协助」，不要把参与写成主导');
+      const srcResults = s.fields.results||'';
+      if(!srcResults && p.results)
+        push('「'+p.project_name+'」原文无结果，简历却写了结果（'+p.results.slice(0,40)+'）',
+          '新增未提供内容','高','', '结果字段留空；如需写成果，先补充真实结果并确认');
+      if(p.results && hasNum(p.results)){
+        const srcNums = (s.fields.raw_text||'').match(/\d+(?:\.\d+)?/g)||[];
+        const genNums = p.results.match(/\d+(?:\.\d+)?/g)||[];
+        const invented = genNums.filter(n=>srcNums.indexOf(n)===-1);
+        if(invented.length)
+          push('「'+p.project_name+'」结果含原文没有的数字：'+invented.join('、'),
+            '虚构数据','高',srcResults||s.fields.raw_text.slice(0,80),
+            '删除或改回原文真实数据，不要编造量化成果');
+      }
+    });
+    // 能力标签：只能是已确认标签
+    (resume.skills||[]).forEach(sk=>{
+      const label = String(sk).trim();
+      if(label && !src.confirmedSkillSet.has(label))
+        push('能力标签「'+label+'」不是已确认标签','待确认写成事实','高','',
+          '删除该标签，或先到经历库确认包含该能力的标签');
+    });
+    // 概述里出现带单位数字但所有已确认原文都没有该数字
+    if(hasNum(resume.summary)){
+      const genNums = (resume.summary||'').match(/\d+(?:\.\d+)?/g)||[];
+      const srcNums = (src.allRaw||'').match(/\d+(?:\.\d+)?/g)||[];
+      const invented = genNums.filter(n=>srcNums.indexOf(n)===-1);
+      if(invented.length) push('个人概述含原文没有的数字：'+invented.join('、'),
+        '虚构数据','高','', '概述中删除这些数字，只保留可追溯的信息');
+    }
+    return risks;
+  }
+  // 按匹配结果排序项目：有直接证据的在前（本地兜底，不只靠模型遵守）
+  function sortProjectsByMatch(projects, matchRecord){
+    if(!matchRecord||!Array.isArray(matchRecord.matches)) return projects;
+    const rank = {};
+    matchRecord.matches.forEach(m=>{ rank[m.experience] = m.match_status==='有直接证据'?0:m.match_status==='待确认'?1:2 });
+    return projects.slice().sort((a,b)=>(rank[a.project_name]??1)-(rank[b.project_name]??1));
+  }
+  const highestRisk = items => items.reduce((h,r)=>RISK_LEVELS.indexOf(r.level)<RISK_LEVELS.indexOf(h)?r.level:h,'低');
+  function renderRiskList(risks){
+    const box = document.getElementById('riskList');
+    if(!risks.length){ box.innerHTML='<div class="hint">未发现事实风险。仍需人工通读确认。</div>'; return }
+    box.innerHTML = risks.map(r=>
+      '<div class="risk-item lv-'+r.level+'">'+
+      '<div class="ri-head"><span>'+r.level+'风险</span>'+
+      '<span class="ri-type">'+esc(r.risk_type)+'</span>'+
+      '<span class="ri-src">'+(r.source==='本地'?'本地强校验':'模型校验')+'</span></div>'+
+      '<div class="ri-content">'+esc(r.content)+'</div>'+
+      '<div class="ri-evidence">原文依据：'+(r.original_evidence?esc(r.original_evidence):'（无可用原文）')+'</div>'+
+      '<div class="ri-suggest">建议：'+esc(r.suggestion)+'</div></div>').join('');
+  }
+  function renderResumeFields(resume, risks){
+    const byField = {};
+    risks.filter(r=>r.level==='高').forEach(r=>{
+      const m = r.content.match(/项目「(.+?)」/);
+      if(m) byField[m[1]] = (byField[m[1]]||'') + r.content+'；';
+    });
+    const escAttr = s=>String(s??'').replace(/"/g,'&quot;');
+    let html = '<div class="resume-field'+(byField['__summary']?' has-risk':'')+'">'+
+      '<div class="rf-label">个人概述</div><textarea id="rf_summary" rows="2">'+esc(resume.summary||'')+'</textarea>'+
+      (byField['__summary']?'<div class="rf-risk">'+esc(byField['__summary'])+'</div>':'')+'</div>';
+    resume.projects.forEach((p,i)=>{
+      const risk = byField[p.project_name]||'';
+      html += '<div class="resume-project"><div class="rp-head"><span>项目 '+esc(p.project_name)+
+        '</span>'+(risk?'<span style="color:var(--danger);font-size:11px">高风险</span>':'')+'</div>';
+      [['background','项目背景'],['responsibilities','个人职责'],['actions','具体行动'],['results','项目结果']].forEach(([k,label])=>{
+        html += '<div class="resume-field'+(risk?' has-risk':'')+'"><div class="rf-label">'+label+'</div>'+
+          '<textarea id="rf_'+i+'_'+k+'" rows="2">'+esc(p[k]||'')+'</textarea></div>';
+      });
+      html += '</div>';
+    });
+    document.getElementById('resumeFields').innerHTML = html;
+  }
+  function resumeText(resume){
+    let t = (resume.summary||'')+'\n\n项目经历\n';
+    resume.projects.forEach((p,i)=>{
+      t += '\n'+(i+1)+'. '+p.project_name+'\n'+
+        '   背景：'+p.background+'\n   职责：'+p.responsibilities+'\n'+
+        '   行动：'+p.actions+'\n   结果：'+(p.results||'（无）')+'\n';
+    });
+    t += '\n能力标签：'+(resume.skills||[]).join('、');
+    return t;
+  }
+  function renderResume(record){
+    const high = record.risks.filter(r=>r.level==='高').length;
+    const mid = record.risks.filter(r=>r.level==='中').length;
+    const low = record.risks.filter(r=>r.level==='低').length;
+    document.getElementById('resumeRiskStrip').innerHTML =
+      '<span class="rr-high">高风险 <b>'+high+'</b></span>'+
+      '<span class="rr-mid">中风险 <b>'+mid+'</b></span>'+
+      '<span class="rr-low">低风险 <b>'+low+'</b></span>'+
+      '<span>生成于 '+esc(record.created_at||'')+'</span>'+
+      '<span class="rr-gate '+(high?'blocked':'pass')+'">'+(high?'存在高风险，禁止确认保存':'无高风险，可确认保存')+'</span>';
+    renderResumeFields(record.resume, record.risks);
+    document.getElementById('resumeSkills').value = (record.resume.skills||[]).join('，');
+    renderRiskList(record.risks);
+    document.getElementById('resumePreview').textContent = resumeText(record.resume);
+    document.getElementById('resumeLayout').hidden = false;
+    const nodes = record.nodes||{};
+    document.getElementById('resumeNodes').hidden = false;
+    document.getElementById('m5Summary').textContent = nodes.m5?.summary||'—';
+    document.getElementById('m5Duration').textContent = typeof nodes.m5?.duration==='number'?nodes.m5.duration+' ms':'—';
+    document.getElementById('m5Json').textContent = JSON.stringify(nodes.m5?.output||{},null,2);
+    document.getElementById('m6Summary').textContent = nodes.m6?.summary||'—';
+    document.getElementById('m6Duration').textContent = typeof nodes.m6?.duration==='number'?nodes.m6.duration+' ms':'—';
+    document.getElementById('m6Json').textContent = JSON.stringify(nodes.m6?.output||{},null,2);
+  }
+  // 从可编辑字段回读简历对象（用户编辑后重新校验用）
+  function readResumeFields(){
+    const r = lsGet(KEY_RESUME,null);
+    if(!r) return null;
+    const resume = JSON.parse(JSON.stringify(r.resume));
+    resume.summary = document.getElementById('rf_summary')?.value ?? resume.summary;
+    resume.projects.forEach((p,i)=>{
+      ['background','responsibilities','actions','results'].forEach(k=>{
+        const el = document.getElementById('rf_'+i+'_'+k);
+        if(el) p[k] = el.value;
+      });
+    });
+    resume.skills = document.getElementById('resumeSkills').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+    return resume;
+  }
+  function loadResumeView(){
+    loadJdOptionsForResume();
+    const last = lsGet(KEY_RESUME,null);
+    if(last && last.resume){ renderResume(last); document.getElementById('resumeStatus').textContent='已载入上次生成的简历'; }
+  }
+  function loadJdOptionsForResume(){
+    const lib = lsGet('jds',[]);
+    const sel = document.getElementById('resumeJdSelect');
+    sel.innerHTML = lib.length
+      ? lib.map((j,i)=>'<option value="'+i+'">'+esc(j.position_name)+'（'+esc((j.jd||'').replace(/\s+/g,' ').slice(0,28))+'…）'+'</option>').join('')
+      : '<option value="">（暂无已解析 JD，请先到「JD 分析」解析一个）</option>';
+  }
+  async function runGenResume(){
+    const lib = lsGet('jds',[]);
+    const idx = document.getElementById('resumeJdSelect').value;
+    const status = document.getElementById('resumeStatus');
+    const btn = document.getElementById('btnGenResume');
+    if(idx===''||!lib[+idx]){ status.textContent='请先到「JD 分析」解析一个 JD'; return }
+    const src = resumeSource();
+    if(!src.exps.length){ status.textContent='没有「已确认」经历，请先在经历库确认至少一条经历'; return }
+    const jdItem = lib[+idx];
+    const matchRecord = lsGet(KEY_MATCH,null);
+    const jdProfile = {position_name:jdItem.position_name, core_requirements:jdItem.result?.core_requirements||[],
+      must_haves:jdItem.result?.must_haves||[], tech_skills:jdItem.result?.tech_skills||[], business_skills:jdItem.result?.business_skills||[]};
+    const m5Input = {jd_profile:jdProfile, confirmed_experiences:src.exps.map(e=>({
+      project_name:e.project_name, raw_text:e.raw_text, fields:{
+        project_background:e.project_background,user_problem:e.user_problem,
+        responsibilities:e.responsibilities,actions:e.actions,results:e.results},
+      confirmed_skills:src.byName[e.project_name].confirmedSkills})),
+      match_result:matchRecord&&matchRecord.jdId===+idx?{matches:matchRecord.matches}:{matches:[]}};
+    btn.disabled=true; status.textContent='正在生成简历…';
+    try{
+      const t5=performance.now();
+      const r5 = validateResumeResult(await callLLM([
+        {role:'system',content:PROMPT_RESUME},
+        {role:'user',content:'请生成岗位定向简历。\n\n'+JSON.stringify(m5Input,null,2)}
+      ], RESUME_SCHEMA));
+      const d5=Math.round(performance.now()-t5);
+      // 本地兜底：项目按匹配结果排序
+      r5.projects = sortProjectsByMatch(r5.projects, matchRecord&&matchRecord.jdId===+idx?matchRecord:null);
+      // 本地强校验（第一道）
+      const localRisks = localFactCheck(r5, src);
+      const t6=performance.now();
+      // 把「已确认标签 + 其原文证据」一并给校验节点，避免模型把有据标签误标为新增内容
+      const confirmedSkillsBrief = src.exps.map(e=>({project_name:e.project_name,
+        confirmed_skills:src.byName[e.project_name].confirmedSkills}));
+      const r6raw = await callLLM([
+        {role:'system',content:PROMPT_VALIDATE},
+        {role:'user',content:'请校验以下简历。\n\n--- 已确认经历原文 ---\n'+src.allRaw+
+          '\n\n--- 已确认的能力标签（这些有原文依据，不算虚构；除外的才算） ---\n'+JSON.stringify(confirmedSkillsBrief,null,2)+
+          '\n\n--- 生成的简历 ---\n'+JSON.stringify(r5,null,2)}
+      ], VALIDATE_SCHEMA);
+      const d6=Math.round(performance.now()-t6);
+      const r6 = validateValidateResult(r6raw);
+      const modelRisks = r6.risk_items.map(r=>Object.assign({},r,{source:'模型'}));
+      const risks = localRisks.concat(modelRisks);
+      const record = {jdId:+idx, position_name:jdItem.position_name, resume:r5, risks,
+        risk_level:highestRisk(risks),
+        nodes:{m5:{summary:JSON.stringify(m5Input).replace(/\s+/g,' ').slice(0,300),duration:d5,output:r5},
+               m6:{summary:'对照原文 '+src.exps.length+' 条 + 简历项目 '+r5.projects.length+' 个',duration:d6,output:r6}},
+        created_at:new Date().toLocaleString('zh-CN')};
+      lsSet(KEY_RESUME, record);
+      renderResume(record);
+      status.textContent='生成完成 · 节点5 '+d5+' ms / 节点6 '+d6+' ms · 本地风险 '+localRisks.length+' 项 / 模型风险 '+modelRisks.length+' 项';
+      document.getElementById('resumeSaveStatus').textContent='';
+    }catch(err){ status.textContent='生成失败：'+(err.message||'未知错误'); }
+    finally{ btn.disabled=false }
+  }
+  function recheckResume(){
+    const record = lsGet(KEY_RESUME,null);
+    if(!record){ document.getElementById('resumeSaveStatus').textContent='请先生成简历'; return }
+    const resume = readResumeFields();
+    const src = resumeSource();
+    const modelRisks = (record.risks||[]).filter(r=>r.source==='模型');
+    const localRisks = localFactCheck(resume, src);
+    const risks = localRisks.concat(modelRisks);
+    record.resume = resume; record.risks = risks; record.risk_level = highestRisk(risks);
+    lsSet(KEY_RESUME, record);
+    renderResume(record);
+    document.getElementById('resumeSaveStatus').textContent='本地重新校验完成：高风险 '+risks.filter(r=>r.level==='高').length+' 项';
+  }
+  function saveResumeVersion(){
+    const record = lsGet(KEY_RESUME,null);
+    if(!record){ document.getElementById('resumeSaveStatus').textContent='请先生成简历'; return }
+    const resume = readResumeFields();
+    const src = resumeSource();
+    const modelRisks = (record.risks||[]).filter(r=>r.source==='模型');
+    const localRisks = localFactCheck(resume, src);
+    const risks = localRisks.concat(modelRisks);
+    const high = risks.filter(r=>r.level==='高');
+    if(high.length){
+      record.resume=resume; record.risks=risks; lsSet(KEY_RESUME,record); renderResume(record);
+      document.getElementById('resumeSaveStatus').textContent='存在 '+high.length+' 项高风险，已阻止保存。请先按建议修改并重新校验。';
+      return;
+    }
+    const versions = lsGet('resume_history',[]);
+    versions.unshift(Object.assign({},record,{id:'resume_'+Date.now().toString(36),
+      resume, risks, confirmed_at:new Date().toLocaleString('zh-CN')}));
+    lsSet('resume_history',versions);
+    document.getElementById('resumeSaveStatus').textContent='已保存版本（共 '+versions.length+' 个）。边界：个人离线 Demo，非真实投递数据。';
+  }
+
   /* ---------- 事件绑定 ---------- */
   document.querySelectorAll('.tab:not(.disabled)').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
   document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>gotoPage(b.dataset.goto)));
@@ -1087,6 +1527,9 @@
   document.getElementById('btnSaveJDResult').addEventListener('click',saveJDResult);
   document.getElementById('btnRunMatch').addEventListener('click',runMatch);
   document.getElementById('btnGotoExp').addEventListener('click',()=>gotoPage('experience'));
+  document.getElementById('btnGenResume').addEventListener('click',runGenResume);
+  document.getElementById('btnRecheckResume').addEventListener('click',recheckResume);
+  document.getElementById('btnSaveResume').addEventListener('click',saveResumeVersion);
 
   /* ---------- 初始化 ---------- */
   renderStats();
@@ -1094,6 +1537,7 @@
   renderSetting();
   loadJDView();
   loadJdOptions();
+  loadJdOptionsForResume();
 </script>
 </body>
 </html>
