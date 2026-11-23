@@ -1,0 +1,31 @@
+# 环境变量 / 密钥（绝对不能提交）
+.env
+.env.*
+*.key
+*.pem
+*.secret
+
+# 用户本地数据 / 浏览器导出（可能含个人信息）
+*.local
+local-data/
+docs/screenshots/*-private*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器 / 临时文件
+.vscode/
+.idea/
+*.swp
+*~
+*.tmp
+
+# 依赖目录（当前零依赖，预留）
+node_modules/
+__pycache__/
+
+# 测试临时文件
+_test.html
+_check.js
