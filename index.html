@@ -130,6 +130,27 @@
   .node-json{max-height:260px;overflow:auto;margin-top:8px;padding:12px;background:#171b24;color:#e7ebf3;border-radius:7px;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
   button:disabled{opacity:.55;cursor:wait}
 
+  .raw-area{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+  .raw-area textarea{min-height:100px}
+  .raw-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+  .raw-status{font-size:12px;color:var(--text-3)}
+  .unresolved{font-size:12px;color:var(--warn);margin-top:8px}
+  details.node-details{margin-top:12px}
+  details.node-details summary{cursor:pointer;font-size:12px;color:var(--brand)}
+  .skill-review{border:1px solid var(--line);border-radius:8px;padding:4px 12px;background:var(--bg)}
+  .skill-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .skill-item:last-child{border-bottom:none}
+  .skill-item .si-main{flex:1;min-width:0}
+  .skill-item .si-label{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .skill-item .si-evidence{font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.5;word-break:break-word}
+  .skill-item .si-evidence:before{content:"原文证据：";color:var(--text-3)}
+  .skill-item .si-ops{display:flex;gap:2px;flex:0 0 auto}
+  .skill-add{display:flex;gap:8px;margin-top:10px}
+  .skill-add input{flex:1}
+  .tag.skill-wait{background:var(--warn-soft);color:var(--warn)}
+  .badge.ai-src{background:var(--brand-soft);color:var(--brand)}
+  .badge.user-src{background:var(--none-soft);color:var(--none)}
+
   .foot-note{max-width:1040px;margin:0 auto;padding:0 28px 32px;font-size:11px;color:var(--text-3)}
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}.entry-grid{grid-template-columns:1fr}
     .form-grid{grid-template-columns:1fr}main{padding:18px}}
@@ -244,22 +265,40 @@
   </section>
 </main>
 
-<div class="foot-note">个人 Demo · JD 与经历数据保存在本机浏览器 · 调用 JD 解析时会将 JD 和 API Key 发送至 DeepSeek · 无真实用户与上线数据</div>
+<div class="foot-note">个人 Demo · 原文 / JD / 经历数据保存在本机浏览器 · 点击「AI 解析抽取」或「解析 JD」时，原文或 JD 与 API Key 会发送至 DeepSeek · 无真实用户与上线数据</div>
 
 <!-- 经历表单弹窗 -->
 <div class="modal-mask" id="maskForm">
   <div class="modal wide">
     <div class="modal-head"><h2 id="formTitle">新增经历</h2><button class="ghost" data-close="maskForm">关闭</button></div>
     <form class="form-grid" id="expForm" onsubmit="return false">
-      <div class="full"><label>项目名称 *</label><input name="project_name" placeholder="如：AI 音乐生成模块"></div>
+      <div class="full raw-area">
+        <label>① 经历原文（粘贴后点右侧按钮，AI 自动抽取字段 + 能力标签）</label>
+        <textarea name="raw_text" id="rawText" placeholder="把你这段项目 / 实习经历原原本本粘进来，例如：参与 AI 音乐生成模块的设计，负责创作流程和核心参数逻辑，与研发协调推进上线……"></textarea>
+        <div class="raw-actions">
+          <button type="button" class="primary" id="btnExtractExp">✦ AI 解析抽取</button>
+          <span class="raw-status" id="extractStatus">原文只存本机；点解析时才发送给 DeepSeek</span>
+        </div>
+      </div>
+      <div class="full"><label>② 结构化字段（解析后自动填入，可手动修改；带 * 为必填）</label></div>
+      <div class="full"><label>项目名称 *</label><input name="project_name" placeholder="AI 音乐生成模块"></div>
       <div class="full"><label>项目背景</label><textarea name="project_background" placeholder="官网新增 AI 音乐生成功能，解决……"></textarea></div>
       <div class="full"><label>用户问题</label><textarea name="user_problem" placeholder="用户需要更便捷的创作流程"></textarea></div>
       <div><label>个人职责</label><textarea name="responsibilities" placeholder="参与创作流程和参数逻辑设计"></textarea></div>
       <div><label>具体行动</label><textarea name="actions" placeholder="梳理流程、设计交互、协调研发"></textarea></div>
       <div class="full"><label>项目结果（请填写真实结果，没有就留空）</label><textarea name="results" placeholder="不要编造量化数据，没有可留空"></textarea></div>
-      <div><label>能力标签（逗号分隔）</label><input name="skills" placeholder="AI 产品设计, 需求分析"></div>
+      <div class="full">
+        <label>③ 能力标签（AI 从原文抽取 · 每条须附证据 · 默认“待确认”，逐条确认后才进入匹配）</label>
+        <div class="skill-review" id="skillReview"><div class="hint" style="padding:10px 0">先在上方粘贴经历原文并点「AI 解析抽取」，标签会出现在这里。没有原文依据的标签不会生成。</div></div>
+        <div class="skill-add">
+          <input id="manualSkill" placeholder="手动补充标签（选填，同样需填原文依据）">
+          <input id="manualEvidence" placeholder="原文依据">
+          <button type="button" id="btnManualSkill">补充</button>
+        </div>
+      </div>
       <div><label>信息来源</label><select name="evidence_source"><option>用户填写</option><option>简历导入</option></select></div>
-      <div class="full"><div class="hint">新增默认“待确认”，你可在列表中点“确认”后才进入正式经历资产。</div></div>
+      <div><label>确认状态</label><select name="confirmation_status"><option>待确认</option><option>已确认</option></select></div>
+      <div class="full"><div class="hint">新增默认“待确认”。标签逐条确认后，你再在列表点“确认经历”让它进入匹配。</div></div>
     </form>
     <div class="modal-foot">
       <button data-close="maskForm">取消</button>
@@ -305,7 +344,10 @@
      openExpForm / closeExpForm / saveExp —— 新增 / 编辑表单
      confirmExp / deleteExp / showDetail  —— 确认 / 删除 / 详情
      renderSetting / saveKey      —— API Key 设置
-     callLLM / parseJD            —— DeepSeek 调用与 JD 解析节点
+     callLLM                      —— 唯一的 DeepSeek 调用入口（所有节点复用）
+     extractExperience            —— 节点 1：经历结构化 + 能力标签生成
+     renderSkillReview / confirmSkill / editSkill / deleteSkill / addManualSkill —— 标签审阅闸门
+     parseJD / validateJDResult   —— 节点 2：JD 解析
    ============================================================ */
 
   const KEY_EXP = 'experiences';
@@ -322,14 +364,56 @@
     }, required:['position_name','responsibilities','core_requirements','must_haves','nice_to_haves','tech_skills','business_skills']
   };
   const FIELDS = ['project_name','project_background','user_problem','responsibilities',
-    'actions','results','skills','evidence_source','confirmation_status'];
+    'actions','results','evidence_source','confirmation_status'];
   const FIELD_LABEL = {
     project_name:'项目名称', project_background:'项目背景', user_problem:'用户问题',
     responsibilities:'个人职责', actions:'具体行动', results:'项目结果',
-    skills:'能力标签', evidence_source:'信息来源', confirmation_status:'确认状态'
+    evidence_source:'信息来源', confirmation_status:'确认状态'
   };
 
+  // 节点 1 输出结构：skills 从「字符串」升级为「对象数组」，带证据与状态
+  const EXP_SCHEMA = {
+    type:'object', additionalProperties:false,
+    properties:{
+      project_name:{type:'string'}, project_background:{type:'string'}, user_problem:{type:'string'},
+      responsibilities:{type:'string'}, actions:{type:'string'}, results:{type:'string'},
+      skills:{type:'array',items:{type:'object',additionalProperties:false,
+        properties:{label:{type:'string'},evidence:{type:'string'},status:{type:'string'}},
+        required:['label','evidence','status']}},
+      unresolved_fields:{type:'array',items:{type:'string'}}
+    },
+    required:['project_name','project_background','user_problem','responsibilities',
+      'actions','results','skills','unresolved_fields']
+  };
+  // PROMPTS.md 节点 1 · V1 全文（唯一真相源；修改请改 PROMPTS.md 后同步此处）
+  const PROMPT_EXTRACT = `你是求职经历信息抽取助手。把用户提供的项目/实习经历原文转成结构化数据，并抽取能力标签。
+
+输入：用户填写的项目/实习经历原文（可能包含模糊表述或不完整信息）。
+
+输出：只输出一个 JSON 对象，不要任何解释文字或 Markdown 代码块标记：
+{
+  "project_name": "项目名称",
+  "project_background": "项目背景",
+  "user_problem": "解决的问题",
+  "responsibilities": "个人职责，保留原文的职责强度词（参与/负责/主导）",
+  "actions": "具体行动",
+  "results": "项目结果；原文未提供则输出空字符串",
+  "skills": [
+    {"label": "能力标签名称", "evidence": "支撑该标签的原文片段", "status": "待确认"}
+  ],
+  "unresolved_fields": ["原文信息不足、无法确定的字段名"]
+}
+
+强约束：
+1. 每个字段只能从原文抽取，不得编造、推测或补充原文不存在的信息。
+2. 每个能力标签必须附 evidence，且 evidence 必须是输入原文中真实存在的连续片段，不得改写或拼接；无法提供原文依据的标签不要输出。
+3. 禁止输出原文未体现的能力；禁止把"用户增长""战略思维"等泛化词当作硬技能标签。
+4. results 原文未提供时必须输出空字符串，并字段名写入 unresolved_fields，严禁编造量化数据。
+5. skills 中每项 status 固定为"待确认"，不得输出"已确认"。
+6. 职责强度词必须原样保留："参与"不得写成"主导"，"协助"不得写成"独立负责"。`;
+
   let editingId = null;
+  let draftSkills = [];  // 当前表单里待审阅的标签数组（含 label/evidence/status/source）
 
   /* ---------- 存储层 ---------- */
   const storage = (function(){
@@ -368,6 +452,14 @@
 
   /* ---------- 经历库 ---------- */
   function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+  // 兼容阶段 0 遗留的字符串标签；新数据为对象数组
+  function skillArray(e){
+    const s = e && e.skills;
+    if(Array.isArray(s)) return s.filter(x=>x && x.label);
+    if(typeof s === 'string') return s.split(/[,，]/).map(x=>x.trim()).filter(Boolean)
+      .map(label=>({label, evidence:'', status:'已确认', source:'legacy'}));
+    return [];
+  }
 
   function renderExperiences(){
     const all = loadExperiences();
@@ -384,8 +476,9 @@
       return;
     }
     box.innerHTML = list.map(e=>{
-      const tags = String(e.skills||'').split(/[,，]/).map(s=>s.trim()).filter(Boolean)
-        .map(s=>'<span class="tag">'+esc(s)+'</span>').join('');
+      const tags = skillArray(e).map(s=>
+        '<span class="tag'+(s.status==='待确认'?' skill-wait':'')+'" title="'+esc(s.evidence||'用户手动补充，无原文片段')+'">'
+        +esc(s.label)+(s.status==='待确认'?' ·待确认':'')+'</span>').join('');
       const badge = e.confirmation_status==='已确认'
         ? '<span class="badge ok">已确认</span>' : '<span class="badge wait">待确认</span>';
       const snippet = [e.project_background,e.responsibilities].filter(Boolean).join(' · ').slice(0,72);
@@ -410,16 +503,24 @@
     form.reset();
     const e = id ? loadExperiences().find(x=>x.id===id) : null;
     FIELDS.forEach(f=>{ if(e && form.elements[f]) form.elements[f].value = e[f]||'' });
+    form.elements['raw_text'].value = e ? (e.raw_text||'') : '';
+    draftSkills = e ? skillArray(e).map(s=>Object.assign({},s)) : [];
+    document.getElementById('extractStatus').textContent = '原文只存本机；点解析时才发送给 DeepSeek';
+    document.getElementById('manualSkill').value = '';
+    document.getElementById('manualEvidence').value = '';
+    renderSkillReview();
     document.getElementById('formTitle').textContent = e ? '编辑经历' : '新增经历';
     document.getElementById('maskForm').classList.add('show');
   }
-  function closeExpForm(){ document.getElementById('maskForm').classList.remove('show'); editingId=null }
+  function closeExpForm(){ document.getElementById('maskForm').classList.remove('show'); editingId=null; draftSkills=[] }
 
   function saveExp(){
     const form = document.getElementById('expForm');
     const data = {};
     FIELDS.forEach(f=>{ data[f] = form.elements[f] ? form.elements[f].value.trim() : '' });
     if(!data.project_name){ alert('请填写项目名称'); return }
+    data.skills = draftSkills.map(s=>Object.assign({},s));
+    data.raw_text = form.elements['raw_text'].value.trim();
     const list = loadExperiences();
     if(editingId){
       const i = list.findIndex(x=>x.id===editingId);
@@ -456,10 +557,116 @@
   function showDetail(id){
     const e = loadExperiences().find(x=>x.id===id);
     if(!e) return;
-    document.getElementById('detailBody').innerHTML = FIELDS.map(f=>
+    let html = FIELDS.map(f=>
       '<div class="detail-row"><div class="k">'+FIELD_LABEL[f]+'</div><div class="v">'+esc(e[f]||'（空）')+'</div></div>'
     ).join('');
+    const tags = skillArray(e);
+    html += '<div class="detail-row"><div class="k">能力标签（'+tags.length+' 条）</div><div class="v">'+
+      (tags.length ? tags.map(s=>
+        '<div style="margin-bottom:7px;padding:7px 9px;background:var(--bg);border-radius:6px">'+
+          '<b>'+esc(s.label)+'</b> '+
+          '<span class="badge '+(s.status==='待确认'?'wait':'ok')+'">'+esc(s.status)+'</span>'+
+          '<div style="font-size:12px;color:var(--text-2);margin-top:3px">证据：'+esc(s.evidence||'（用户手动补充，无原文片段）')+'</div>'+
+        '</div>').join('') : '（无）') + '</div></div>';
+    document.getElementById('detailBody').innerHTML = html;
     document.getElementById('maskDetail').classList.add('show');
+  }
+
+  /* ---------- 标签审阅闸门（Human-in-the-loop） ---------- */
+  function renderSkillReview(){
+    const box = document.getElementById('skillReview');
+    if(!draftSkills.length){
+      box.innerHTML = '<div class="hint" style="padding:10px 0">暂无标签。粘贴经历原文点「AI 解析抽取」，或手动补充。</div>';
+      return;
+    }
+    box.innerHTML = draftSkills.map((s,i)=>
+      '<div class="skill-item"><div class="si-main">'+
+        '<div class="si-label">'+esc(s.label)+
+          '<span class="badge '+(s.status==='已确认'?'ok':'wait')+'">'+esc(s.status)+'</span>'+
+          '<span class="badge '+(s.source==='ai'?'ai-src':'user-src')+'">'+(s.source==='ai'?'AI 抽取':'手动')+'</span>'+
+        '</div>'+
+        '<div class="si-evidence">'+esc(s.evidence||'（手动补充，未附原文片段）')+'</div>'+
+      '</div><div class="si-ops">'+
+        (s.status==='待确认' ? '<button class="ghost" onclick="confirmSkill('+i+')">确认</button>' : '')+
+        '<button class="ghost" onclick="editSkill('+i+')">修改</button>'+
+        '<button class="ghost danger" onclick="deleteSkill('+i+')">删除</button>'+
+      '</div></div>').join('');
+  }
+  function confirmSkill(i){
+    if(!draftSkills[i]) return;
+    draftSkills[i].status = '已确认';
+    renderSkillReview();
+  }
+  function editSkill(i){
+    if(!draftSkills[i]) return;
+    const v = prompt('修改标签名：', draftSkills[i].label);
+    if(v===null || !v.trim()) return;
+    // 一旦修改，重新回到待确认（避免改后绕过闸门）
+    draftSkills[i].label = v.trim();
+    draftSkills[i].status = '待确认';
+    renderSkillReview();
+  }
+  function deleteSkill(i){ draftSkills.splice(i,1); renderSkillReview() }
+  function addManualSkill(){
+    const label = document.getElementById('manualSkill').value.trim();
+    const evidence = document.getElementById('manualEvidence').value.trim();
+    if(!label){ alert('请填写标签名'); return }
+    draftSkills.push({label, evidence, status:'已确认', source:'user'});
+    document.getElementById('manualSkill').value = '';
+    document.getElementById('manualEvidence').value = '';
+    renderSkillReview();
+  }
+
+  /* ---------- 节点 1：经历结构化 + 能力标签生成 ---------- */
+  function validateExtractResult(data){
+    if(!data || typeof data!=='object' || Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    for(const key of EXP_SCHEMA.required) if(!(key in data)) throw new Error('缺少字段：'+key);
+    for(const key of ['project_name','project_background','user_problem','responsibilities','actions','results'])
+      if(typeof data[key]!=='string') throw new Error(key+' 必须是字符串');
+    if(!Array.isArray(data.skills)) throw new Error('skills 必须是数组');
+    if(!Array.isArray(data.unresolved_fields)) throw new Error('unresolved_fields 必须是数组');
+    data.skills.forEach((s,i)=>{
+      if(!s || typeof s.label!=='string' || typeof s.evidence!=='string' || typeof s.status!=='string')
+        throw new Error('skills 第 '+(i+1)+' 项结构错误');
+    });
+    return data;
+  }
+  async function extractExperience(){
+    const form = document.getElementById('expForm');
+    const raw = form.elements['raw_text'].value.trim();
+    const status = document.getElementById('extractStatus');
+    const btn = document.getElementById('btnExtractExp');
+    if(!raw){ status.textContent = '请先粘贴经历原文'; return }
+    btn.disabled = true; status.textContent = '正在抽取…';
+    const started = performance.now();
+    try{
+      const parsed = validateExtractResult(await callLLM([
+        {role:'system', content:PROMPT_EXTRACT},
+        {role:'user', content:'请从以下经历原文中抽取结构化字段与能力标签。\n\n--- 经历原文开始 ---\n'+raw+'\n--- 经历原文结束 ---'}
+      ], EXP_SCHEMA));
+      const duration = Math.round(performance.now()-started);
+
+      // 本地强校验：evidence 必须是原文连续片段；不满足的标签直接丢弃（不信任模型自律）
+      const kept = [], dropped = [];
+      parsed.skills.forEach(s=>{
+        const ok = s.evidence && raw.indexOf(s.evidence) !== -1;
+        if(ok) kept.push({label:s.label, evidence:s.evidence, status:'待确认', source:'ai'});
+        else dropped.push(s.label);
+      });
+      // 回填结构化字段（不覆盖用户已手填的非空字段？——解析是主动动作，直接回填，用户可再改）
+      ['project_name','project_background','user_problem','responsibilities','actions','results'].forEach(f=>{
+        if(form.elements[f]) form.elements[f].value = parsed[f]||'';
+      });
+      draftSkills = kept;
+      renderSkillReview();
+      const msg = '抽取完成 · '+duration+' ms · 保留 '+kept.length+' 标签'+
+        (dropped.length ? '，丢弃 '+dropped.length+' 条无原文依据标签' : '');
+      status.textContent = msg;
+      // 记录节点输出供复盘（内存变量，不落盘到文件）
+      console.log('[节点1 经历抽取]', {raw:raw.slice(0,120), duration, parsed, dropped});
+    }catch(err){
+      status.textContent = '抽取失败：'+(err.message||'未知错误');
+    }finally{ btn.disabled = false }
   }
 
   /* ---------- 设置 ---------- */
@@ -566,6 +773,8 @@
   }));
   document.getElementById('btnAddExp').addEventListener('click',()=>openExpForm());
   document.getElementById('btnSaveExp').addEventListener('click',saveExp);
+  document.getElementById('btnExtractExp').addEventListener('click',extractExperience);
+  document.getElementById('btnManualSkill').addEventListener('click',addManualSkill);
   document.getElementById('filterStatus').addEventListener('change',renderExperiences);
   document.getElementById('btnSetting').addEventListener('click',()=>{
     renderSetting(); document.getElementById('maskSetting').classList.add('show');
