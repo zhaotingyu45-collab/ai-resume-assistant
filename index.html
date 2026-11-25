@@ -435,7 +435,7 @@
     <div class="eval-notice" id="evalNotice">加载中…</div>
     <div class="eval-toolbar">
       <div class="fld"><label>Prompt 配置</label>
-        <select id="evalVersion"><option value="V1">V1（当前基线）</option><option value="V2">V2（候选改动）</option></select></div>
+        <select id="evalVersion"><option value="V1">V1（当前基线）</option><option value="V2A">V2a（当前候选：只改节点 3 一条）</option><option value="V2">V2（已回滚，存档）</option></select></div>
       <div class="fld"><label>运行样本数</label>
         <select id="evalLimit"><option value="3">前 3 组（试跑）</option><option value="5">前 5 组</option><option value="all" selected>全部内置样本</option></select></div>
       <button class="primary" id="btnRunEval">运行评测</button>
@@ -994,6 +994,11 @@
     n5:PROMPT_RESUME+'\n7. 项目职责必须与原文强度词完全一致；原文为「参与」「协助」时不得输出「主导」「独立负责」。',
     n6:PROMPT_VALIDATE+'\n7. 必须逐字比对职责强度词：原文「参与/协助」而简历出现「主导/独立负责/牵头」时标高风险。\n8. 简历中带单位的数字必须能在原文核到，核不到一律标高风险，即使表述合理。'
   };
+  // V2a 当前候选：V2 因过度降级被回滚，此处只保留节点 3 的反关键词约束（一次只改一条）
+  const EVAL_PROMPT_V2A = Object.assign({}, EVAL_PROMPT_V1, {
+    n3:PROMPT_MATCH+'\n6. 不得仅因为能力名称出现在经历原文就判定「有直接证据」；必须确认原文描述的具体行动真正体现该能力。'
+  });
+  const EVAL_PROMPTS_BY_VERSION = {V1:EVAL_PROMPT_V1, V2:EVAL_PROMPT_V2, V2A:EVAL_PROMPT_V2A};
   const KEY_EVAL_RUNS = 'evalResults';
   const KEY_EVAL_SAMPLES = 'evalSamples';
   let evalBusy = false;
@@ -2055,17 +2060,19 @@
   function renderEvalCompare(){
     const sec=document.getElementById('evalCompareSec'), box=document.getElementById('evalCompareBox');
     const runs=lsGet(KEY_EVAL_RUNS,{});
-    const v1=runs.V1, v2=runs.V2;
-    if(!v1||!v2){ sec.hidden=true; box.innerHTML=''; return }
+    const v1=runs.V1;
+    const candidateKey=runs.V2A?'V2A':(runs.V2?'V2':null);
+    if(!v1||!candidateKey){ sec.hidden=true; box.innerHTML=''; return }
+    const v2=runs[candidateKey];
     sec.hidden=false;
     const rows=metricRows(v1.metrics).slice(0,7), v2rows=metricRows(v2.metrics);
     const get=(arr,i)=>{ const v=arr[i]&&arr[i][1]; if(v===null||v===undefined) return null;
       const n=parseFloat(v); return isNaN(n)?null:n };
     box.innerHTML='<div class="hint">V1 样本 N='+v1.metrics.n+'（成功）/ '+(v1.metrics.n+v1.metrics.error)+'（运行）；'+
-      'V2 样本 N='+v2.metrics.n+'（成功）/ '+(v2.metrics.n+v2.metrics.error)+'（运行）；同集、同口径。'+
+      candidateKey+' 样本 N='+v2.metrics.n+'（成功）/ '+(v2.metrics.n+v2.metrics.error)+'（运行）；同集、同口径。'+
       '「事实错误率」「系统兜底后错误率」「模型误报率」越低越好，其余越高越好。</div>'+
       '<table class="eval-table"><colgroup><col class="m-col"><col class="v-col"><col class="v-col"><col class="d-col"></colgroup>'+
-      '<thead><tr><th>指标</th><th>Prompt V1</th><th>Prompt V2</th><th>差值（V2 − V1）</th></tr></thead><tbody>'+
+      '<thead><tr><th>指标</th><th>Prompt V1</th><th>Prompt '+candidateKey+'</th><th>差值（'+candidateKey+' − V1）</th></tr></thead><tbody>'+
       rows.map((r,i)=>{
         const a=get(rows,i), b=get(v2rows,i);
         let delta='—', cls='';
@@ -2083,7 +2090,9 @@
   function renderEvalPromptTexts(){
     const fmt=obj=>Object.entries(obj).map(([k,v])=>'【节点 '+k.replace('n','')+'】\n'+v).join('\n\n');
     document.getElementById('evalPromptV1').textContent=fmt(EVAL_PROMPT_V1);
-    document.getElementById('evalPromptV2').textContent=fmt(EVAL_PROMPT_V2);
+    document.getElementById('evalPromptV2').textContent=
+      '【V2a 当前候选 · 只改节点 3 第 6 条】\n'+fmt(EVAL_PROMPT_V2A)+
+      '\n\n【V2 已回滚 · 存档】\n'+fmt(EVAL_PROMPT_V2);
   }
   function loadEvalView(){
     const samples=getEvalSamples();
@@ -2105,7 +2114,7 @@
     if(evalBusy) return;
     if(!storage.getItem(KEY_API)){ alert('请先在右上角「设置」中填写 DeepSeek API Key'); return }
     const version=document.getElementById('evalVersion').value;
-    const P=version==='V2'?EVAL_PROMPT_V2:EVAL_PROMPT_V1;
+    const P=EVAL_PROMPTS_BY_VERSION[version]||EVAL_PROMPT_V1;
     const samples=getEvalSamples();
     const limit=document.getElementById('evalLimit').value;
     const chosen=limit==='all'?samples:samples.slice(0,+limit);
@@ -2147,7 +2156,7 @@
     if(!Object.keys(runs).length){ setEvalStatus('尚无评测结果可导出'); return }
     const payload={exported_at:new Date().toISOString(),
       disclaimer:EVAL_DISCLAIMER, sample_count:getEvalSamples().length,
-      samples:getEvalSamples(), promptVariants:{V1:EVAL_PROMPT_V1,V2:EVAL_PROMPT_V2},
+      samples:getEvalSamples(), promptVariants:EVAL_PROMPTS_BY_VERSION,
       metric_definition:{
         'JD 能力提取准确率':'命中标注能力数 / 标注能力总数（micro 汇总）',
         '能力标签抽取准确率':'命中标注标签数 / 标注标签总数（micro 汇总，evidence 非原文子串的标签已丢弃）',
