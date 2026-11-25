@@ -176,6 +176,15 @@
   .status-tag.st-ok{background:var(--ok-soft);color:var(--ok)}
   .status-tag.st-wait{background:var(--warn-soft);color:var(--warn)}
   .status-tag.st-none{background:var(--none-soft);color:var(--none)}
+  .status-tag.st-move{background:var(--info-soft,#eef4ff);color:var(--info,#1d64c8)}
+  .transfer-fact{display:block;color:var(--text-3);font-size:11px;margin-bottom:3px}
+  .transfer-phrase{display:block;color:var(--text-1);font-size:12px;font-family:inherit}
+  .transfer-accepted{display:block;margin-top:4px;font-size:11px;color:var(--ok)}
+  .cell-reason button{font-size:11px;padding:3px 8px;margin-top:5px}
+  .gap-answer{display:flex;gap:6px;margin-top:7px}
+  .gap-answer input{flex:1}
+  .gap-answer button{white-space:nowrap;font-size:11px}
+  .gap-done{font-size:11px;color:var(--ok);margin-top:5px}
   .gap-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-top:12px}
   .gap-box h2{font-size:15px;margin-bottom:4px}
   .gap-item{padding:10px 0;border-bottom:1px solid var(--line)}
@@ -205,6 +214,8 @@
   .resume-field textarea,.resume-field input{font-size:13px}
   .resume-field.has-risk textarea,.resume-field.has-risk input{border-color:var(--danger);background:var(--danger-soft)}
   .resume-field .rf-risk{font-size:11px;color:var(--danger);margin-top:4px}
+  .resume-field .rf-fact{font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.5}
+  .resume-field .rf-fact-none{color:var(--warn)}
   .resume-project{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px}
   .resume-project .rp-head{font-size:13px;font-weight:600;color:var(--brand);margin-bottom:8px;display:flex;justify-content:space-between}
   .resume-skills input{width:100%}
@@ -316,7 +327,7 @@
   <!-- 页面 4：匹配分析（阶段 2 实现） -->
   <section class="page" id="page-match">
     <div class="page-head">
-      <div><h1>匹配分析</h1><div class="hint">只用「已确认」的经历与标签做证据；每条结论必须能追溯到经历原文</div></div>
+      <div><h1>匹配分析</h1><div class="hint">事实层只用已确认经历；「可迁移」是把相关事实换成 JD 说法的草稿，需你确认后才进简历</div></div>
     </div>
     <div class="match-toolbar">
       <div class="fld"><label>目标 JD</label><select id="matchJdSelect"></select></div>
@@ -328,12 +339,12 @@
     <div class="match-table-wrap" id="matchTableWrap" hidden>
       <table class="match-table">
         <colgroup><col class="c-ability"><col class="c-exp"><col class="c-evidence"><col class="c-status"><col class="c-reason"></colgroup>
-        <thead><tr><th>JD 能力要求</th><th>匹配经历</th><th>证据原文</th><th>状态</th><th>判断理由</th></tr></thead>
+        <thead><tr><th>JD 能力要求</th><th>匹配经历</th><th>证据原文 / 迁移草稿</th><th>状态</th><th>判断理由 / 操作</th></tr></thead>
         <tbody id="matchTableBody"></tbody>
       </table>
     </div>
     <div class="gap-box" id="gapBox" hidden>
-      <h2>能力缺口 <span class="hint">（针对暂无证据 / 待确认的能力，给出可回答的具体提问）</span></h2>
+      <h2>经历补完 · 追问卡 <span class="hint">（回答后直接写回经历库，下次匹配即可用；最多 3 条）</span></h2>
       <div id="gapList"></div>
     </div>
     <div class="match-nodes" id="matchNodes" hidden>
@@ -833,28 +844,55 @@
     return {exps, expBriefs, corpus};
   }
   function renderMatch(record){
+    const accepted = record.accepted_transfers||{};
     document.getElementById('matchSummary').innerHTML = [
       '<span>能力总数 <b>'+record.matches.length+'</b></span>',
       '<span class="s-ok">有直接证据 <b>'+record.matches.filter(m=>m.match_status==='有直接证据').length+'</b></span>',
-      '<span class="s-wait">待确认 <b>'+record.matches.filter(m=>m.match_status==='待确认').length+'</b></span>',
+      '<span class="s-move">可迁移 <b>'+record.matches.filter(m=>m.match_status==='可迁移').length+'</b></span>'+
+      ' <span class="hint">（已采纳 '+Object.keys(accepted).length+'）</span>',
       '<span class="s-none">暂无证据 <b>'+record.matches.filter(m=>m.match_status==='暂无证据').length+'</b></span>',
       '<span>生成于 '+esc(record.created_at||'')+'</span>'
     ].join('');
-    const stCls = {'有直接证据':'st-ok','待确认':'st-wait','暂无证据':'st-none'};
-    const body = record.matches.map(m=>
-      '<tr><td class="cell-ability">'+esc(m.ability)+'</td>'+
-      '<td>'+esc(m.experience||'—')+'</td>'+
-      '<td class="cell-evidence">'+(m.evidence?esc(m.evidence):'<span class="no-evidence">无引用</span>')+'</td>'+
-      '<td><span class="status-tag '+stCls[m.match_status]+'">'+m.match_status+'</span></td>'+
-      '<td class="cell-reason">'+esc(m.reasoning||'—')+'</td></tr>').join('');
+    const stCls = {'有直接证据':'st-ok','可迁移':'st-move','暂无证据':'st-none','待确认':'st-wait'};
+    const body = record.matches.map((m,i)=>{
+      let evidenceCell='';
+      if(m.match_status==='有直接证据' && m.evidence) evidenceCell=esc(m.evidence);
+      else if(m.match_status==='可迁移')
+        evidenceCell='<span class="transfer-fact">原文事实：'+esc(m.transfer_fact||'')+'</span>'+
+          '<span class="transfer-phrase">迁移草稿：'+esc(m.transfer_phrase||'')+'</span>';
+      else evidenceCell='<span class="no-evidence">无引用</span>';
+      let action = esc(m.reasoning||'—');
+      if(m.match_status==='可迁移'){
+        action += accepted[m.ability]
+          ? '<br><span class="transfer-accepted">✓ 已采纳迁移表达，生成简历时将优先使用</span>'+
+            '<br><button data-unaccept="'+i+'">撤销采纳</button>'
+          : '<br><button data-accept="'+i+'">采纳该迁移表达</button>';
+      }
+      return '<tr><td class="cell-ability">'+esc(m.ability)+'</td>'+
+        '<td>'+esc(m.experience||'—')+'</td>'+
+        '<td class="cell-evidence">'+evidenceCell+'</td>'+
+        '<td><span class="status-tag '+stCls[m.match_status]+'">'+m.match_status+'</span></td>'+
+        '<td class="cell-reason">'+action+'</td></tr>';
+    }).join('');
     document.getElementById('matchTableBody').innerHTML = body;
     document.getElementById('matchTableWrap').hidden = false;
 
     const gaps = record.gaps||[];
+    const answered = record.gap_answers||{};
     document.getElementById('gapList').innerHTML = gaps.length
-      ? gaps.map(g=>'<div class="gap-item"><div class="g-ability">'+esc(g.ability)+
-          ' <span class="status-tag '+(g.gap_type==='待确认'?'st-wait':'st-none')+'">'+g.gap_type+'</span></div>'+
-          '<div class="g-question">补充提问：'+esc(g.question)+'</div></div>').join('')
+      ? gaps.map((g,i)=>{
+          const key = g.ability+'|'+g.question;
+          const done = Object.values(answered).some(a=>a.key===key);
+          const move = g.gap_type==='可迁移确认';
+          return '<div class="gap-item"><div class="g-ability">'+esc(g.ability)+
+            ' <span class="status-tag '+(move?'st-move':'st-none')+'">'+esc(g.gap_type)+'</span></div>'+
+            '<div class="g-question">'+(move?'请确认：':'补充提问：')+esc(g.question)+'</div>'+
+            (done?'<div class="gap-done">✓ 已写回经历库（'+esc(answered[Object.keys(answered).find(k=>answered[k].key===key)]?.answer||'')+'）</div>'
+              :'<div class="gap-answer">'+
+                '<input type="text" id="gapInput_'+i+'" placeholder="'+(move?'可直接输入修正后的表达，或留空表示确认':'一句话回答：你具体做了什么？')+'">'+
+                '<button data-answer="'+i+'">'+(move?'确认':'写回经历库')+'</button></div>')+
+            '</div>';
+        }).join('')
       : '<div class="hint">暂无能力缺口。</div>';
     document.getElementById('gapBox').hidden = false;
 
@@ -890,41 +928,89 @@
     const m3Input = {jd_profile:jdProfile, confirmed_experiences:expBriefs};
     try{
       const t3=performance.now();
-      const r3 = validateMatchResult(await callLLM([
-        {role:'system',content:PROMPT_MATCH},
+      const r3 = validateMatchV3Result(await callLLM([
+        {role:'system',content:PROMPT_MATCH_V3},
         {role:'user',content:'请匹配。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
           '\n\n--- 已确认经历（仅这些可用作证据） ---\n'+JSON.stringify(expBriefs,null,2)}
-      ], MATCH_SCHEMA));
+      ], MATCH_V3_SCHEMA));
       const d3=Math.round(performance.now()-t3);
-      // 本地证据强校验
-      r3.matches = enforceEvidenceOnMatches(r3.matches, corpus, exps);
-      // 保证每个能力都有一行（缺失的补暂无证据）
+      r3.matches = enforceTransferV3(r3.matches, corpus, exps);
+      const empty = {ability:'',experience:'',evidence:'',match_status:'暂无证据',reasoning:'模型未输出该能力，本地补暂无证据',transfer_fact:'',transfer_phrase:''};
       abilities.forEach(a=>{ if(!r3.matches.some(m=>m.ability===a))
-        r3.matches.push({ability:a,experience:'',evidence:'',match_status:'暂无证据',reasoning:'模型未输出该能力，本地补暂无证据'}); });
+        r3.matches.push(Object.assign({},empty,{ability:a})); });
+      // 每行字段完整性兜底（模型可能漏字段）
+      r3.matches.forEach(m=>{
+        if(MATCH_STATUS_V3.indexOf(m.match_status)===-1) m.match_status='暂无证据';
+        ['transfer_fact','transfer_phrase'].forEach(k=>{ if(typeof m[k]!=='string') m[k]='' });
+      });
 
       const t4=performance.now();
-      const r4 = validateGapResult(await callLLM([
-        {role:'system',content:PROMPT_GAP},
-        {role:'user',content:'请识别缺口。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+      const r4 = validateGapV3Result(await callLLM([
+        {role:'system',content:PROMPT_GAP_V3},
+        {role:'user',content:'请生成经历补完追问卡。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
           '\n\n--- 节点3 匹配结果 ---\n'+JSON.stringify({matches:r3.matches,missing_abilities:r3.missing_abilities},null,2)}
-      ], GAP_SCHEMA));
+      ], GAP_V3_SCHEMA));
       const d4=Math.round(performance.now()-t4);
-      // 缺口覆盖校验：missing_abilities 中每项都要出现在 gaps
+      r4.gaps = r4.gaps.slice(0,3);
       const gapAbilities = r4.gaps.map(g=>g.ability);
       r3.missing_abilities.forEach(a=>{ if(!gapAbilities.includes(a))
-        r4.gaps.push({ability:a,gap_type:'暂无证据',question:'请补充一段能证明「'+a+'」的真实经历，描述你具体做了什么'}); });
+        r4.gaps.push({ability:a,gap_type:'暂无证据',target_project:'',
+          question:'你做过什么能体现「'+a+'」的事？请用一句话描述你具体做了什么'}); });
+      r4.gaps = r4.gaps.slice(0,3);
 
+      // 保留上一次已确认的迁移表达与已回答的追问（按能力名对齐，不因重跑丢失）
+      const prev = lsGet(KEY_MATCH,null);
+      const prevAccepted = (prev&&prev.jdId===+jdIdx&&prev.accepted_transfers)||{};
+      const prevAnswers = (prev&&prev.jdId===+jdIdx&&prev.gap_answers)||{};
       const record = {jdId:+jdIdx, position_name:jdItem.position_name,
         matches:r3.matches, missing_abilities:r3.missing_abilities, gaps:r4.gaps,
+        accepted_transfers:prevAccepted, gap_answers:prevAnswers,
         nodes:{m3:{summary:JSON.stringify(m3Input).replace(/\s+/g,' ').slice(0,300),duration:d3,output:r3},
                m4:{summary:'JD 能力 '+abilities.length+' 项 + 节点3匹配 '+r3.matches.length+' 条',duration:d4,output:r4}},
         created_at:new Date().toLocaleString('zh-CN')};
       lsSet(KEY_MATCH, record);
       renderMatch(record);
-      status.textContent='匹配完成 · 节点3 '+d3+' ms / 节点4 '+d4+' ms';
-      console.log('[阶段2 匹配]', record);
+      status.textContent='匹配完成 · 有直接证据 '+record.matches.filter(m=>m.match_status==='有直接证据').length+
+        ' / 可迁移 '+record.matches.filter(m=>m.match_status==='可迁移').length+' / 暂无证据 '+record.matches.filter(m=>m.match_status==='暂无证据').length;
+      console.log('[阶段2 匹配 V3]', record);
     }catch(err){ status.textContent='匹配失败：'+(err.message||'未知错误'); }
     finally{ btn.disabled=false }
+  }
+  // 采纳 / 撤销「可迁移」表达：只有采纳后才会进入简历生成
+  function setTransferAccepted(i, on){
+    const record=lsGet(KEY_MATCH,null); if(!record||!record.matches[i]) return;
+    const m=record.matches[i];
+    if(m.match_status!=='可迁移') return;
+    record.accepted_transfers = record.accepted_transfers||{};
+    if(on) record.accepted_transfers[m.ability]={phrase:m.transfer_phrase, fact:m.transfer_fact,
+      project:m.experience, at:new Date().toLocaleString('zh-CN')};
+    else delete record.accepted_transfers[m.ability];
+    lsSet(KEY_MATCH,record); renderMatch(record);
+  }
+  // 追问卡回答 → 写回经历库（用户自己回答的内容视为已确认事实）
+  function answerGap(i){
+    const record=lsGet(KEY_MATCH,null); if(!record||!record.gaps[i]) return;
+    const gap=record.gaps[i];
+    const input=document.getElementById('gapInput_'+i);
+    const answer=(input?.value||'').trim();
+    if(gap.gap_type==='可迁移确认'){
+      const m=(record.matches||[]).find(x=>x.ability===gap.ability);
+      if(m) setTransferAccepted(record.matches.indexOf(m),true);
+      document.getElementById('matchStatus').textContent='已确认迁移表达：'+gap.ability;
+      return;
+    }
+    if(!answer){ document.getElementById('matchStatus').textContent='请先填写回答'; return }
+    const list=loadExperiences();
+    const exp={id:uid(), project_name:'补充：'+gap.ability, raw_text:'场景：'+gap.ability+'\n用户补充：'+answer,
+      project_background:'', user_problem:'', responsibilities:answer, actions:'', results:'',
+      skills:[], confirmation_status:'已确认', source:'user',
+      created_at:new Date().toLocaleString('zh-CN'), from_gap:true};
+    list.unshift(exp); saveExperiences(list);
+    record.gap_answers=record.gap_answers||{};
+    record.gap_answers[exp.id]={key:gap.ability+'|'+gap.question, answer, ability:gap.ability, expId:exp.id};
+    lsSet(KEY_MATCH,record);
+    renderMatch(record); renderExperiences(); renderStats();
+    document.getElementById('matchStatus').textContent='已写回经历库：'+gap.ability+'（点「重新匹配」使其生效）';
   }
 
   /* ---------- 阶段 3：简历生成 + 事实校验 ---------- */
@@ -972,8 +1058,10 @@
       html += '<div class="resume-project"><div class="rp-head"><span>项目 '+esc(p.project_name)+
         '</span>'+(risk?'<span style="color:var(--danger);font-size:11px">高风险</span>':'')+'</div>';
       [['background','项目背景'],['responsibilities','个人职责'],['actions','具体行动'],['results','项目结果']].forEach(([k,label])=>{
+        const fact=(p.fact_map||{})[k];
         html += '<div class="resume-field'+(risk?' has-risk':'')+'"><div class="rf-label">'+label+'</div>'+
-          '<textarea id="rf_'+i+'_'+k+'" rows="2">'+esc(p[k]||'')+'</textarea></div>';
+          '<textarea id="rf_'+i+'_'+k+'" rows="2">'+esc(p[k]||'')+'</textarea>'+
+          (fact?'<div class="rf-fact">事实依据：'+esc(fact)+'</div>':'<div class="rf-fact rf-fact-none">事实依据：缺失（重新生成可补齐）</div>')+'</div>';
       });
       html += '</div>';
     });
@@ -1017,6 +1105,7 @@
   function readResumeFields(){
     const r = lsGet(KEY_RESUME,null);
     if(!r) return null;
+    // 深拷贝保留 fact_map；用户只编辑表达层，事实映射不随文本编辑改变
     const resume = JSON.parse(JSON.stringify(r.resume));
     resume.summary = document.getElementById('rf_summary')?.value ?? resume.summary;
     resume.projects.forEach((p,i)=>{
@@ -1057,28 +1146,28 @@
         project_background:e.project_background,user_problem:e.user_problem,
         responsibilities:e.responsibilities,actions:e.actions,results:e.results},
       confirmed_skills:src.byName[e.project_name].confirmedSkills})),
-      match_result:matchRecord&&matchRecord.jdId===+idx?{matches:matchRecord.matches}:{matches:[]}};
+      match_result:matchRecord&&matchRecord.jdId===+idx?{matches:matchRecord.matches}:{matches:[]},
+      accepted_transfers:matchRecord&&matchRecord.jdId===+idx?(matchRecord.accepted_transfers||{}):{}};
     btn.disabled=true; status.textContent='正在生成简历…';
     try{
       const t5=performance.now();
-      const r5 = validateResumeResult(await callLLM([
-        {role:'system',content:PROMPT_RESUME},
+      const r5 = validateResumeV3Result(await callLLM([
+        {role:'system',content:PROMPT_RESUME_V3},
         {role:'user',content:'请生成岗位定向简历。\n\n'+JSON.stringify(m5Input,null,2)}
-      ], RESUME_SCHEMA));
+      ], RESUME_V3_SCHEMA));
       const d5=Math.round(performance.now()-t5);
-      // 本地兜底：项目按匹配结果排序
-      r5.projects = sortProjectsByMatch(r5.projects, matchRecord&&matchRecord.jdId===+idx?matchRecord:null);
-      // 本地强校验（第一道）
-      const localRisks = localFactCheck(r5, src);
+      r5.projects = sortProjectsByMatchV3(r5.projects, matchRecord&&matchRecord.jdId===+idx?matchRecord:null);
+      const localRisks = localFactCheckV3(r5, src);
       const t6=performance.now();
       // 把「已确认标签 + 其原文证据」一并给校验节点，避免模型把有据标签误标为新增内容
       const confirmedSkillsBrief = src.exps.map(e=>({project_name:e.project_name,
         confirmed_skills:src.byName[e.project_name].confirmedSkills}));
       const r6raw = await callLLM([
-        {role:'system',content:PROMPT_VALIDATE},
+        {role:'system',content:PROMPT_VALIDATE_V3},
         {role:'user',content:'请校验以下简历。\n\n--- 已确认经历原文 ---\n'+src.allRaw+
           '\n\n--- 已确认的能力标签（这些有原文依据，不算虚构；除外的才算） ---\n'+JSON.stringify(confirmedSkillsBrief,null,2)+
-          '\n\n--- 生成的简历 ---\n'+JSON.stringify(r5,null,2)}
+          '\n\n--- 用户已采纳的迁移表达（仍受数字/强度词约束） ---\n'+JSON.stringify(m5Input.accepted_transfers,null,2)+
+          '\n\n--- 生成的简历（含 fact_map） ---\n'+JSON.stringify(r5,null,2)}
       ], VALIDATE_SCHEMA);
       const d6=Math.round(performance.now()-t6);
       const r6 = validateValidateResult(r6raw);
@@ -1102,7 +1191,7 @@
     const resume = readResumeFields();
     const src = resumeSource();
     const modelRisks = (record.risks||[]).filter(r=>r.source==='模型');
-    const localRisks = localFactCheck(resume, src);
+    const localRisks = localFactCheckV3(resume, src);
     const risks = localRisks.concat(modelRisks);
     record.resume = resume; record.risks = risks; record.risk_level = highestRisk(risks);
     lsSet(KEY_RESUME, record);
@@ -1115,7 +1204,7 @@
     const resume = readResumeFields();
     const src = resumeSource();
     const modelRisks = (record.risks||[]).filter(r=>r.source==='模型');
-    const localRisks = localFactCheck(resume, src);
+    const localRisks = localFactCheckV3(resume, src);
     const risks = localRisks.concat(modelRisks);
     const high = risks.filter(r=>r.level==='高');
     if(high.length){
@@ -1151,6 +1240,15 @@
   document.getElementById('btnParseJD').addEventListener('click',parseJD);
   document.getElementById('btnSaveJDResult').addEventListener('click',saveJDResult);
   document.getElementById('btnRunMatch').addEventListener('click',runMatch);
+  document.getElementById('matchTableBody').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    if(b.dataset.accept!==undefined) setTransferAccepted(+b.dataset.accept,true);
+    if(b.dataset.unaccept!==undefined) setTransferAccepted(+b.dataset.unaccept,false);
+  });
+  document.getElementById('gapList').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-answer]'); if(!b) return;
+    answerGap(+b.dataset.answer);
+  });
   document.getElementById('btnGotoExp').addEventListener('click',()=>gotoPage('experience'));
   document.getElementById('btnGenResume').addEventListener('click',runGenResume);
   document.getElementById('btnRecheckResume').addEventListener('click',recheckResume);

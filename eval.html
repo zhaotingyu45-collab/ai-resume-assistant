@@ -283,7 +283,7 @@
     <div class="eval-notice" id="evalNotice">加载中…</div>
     <div class="eval-toolbar">
       <div class="fld"><label>Prompt 配置</label>
-        <select id="evalVersion"><option value="V1">V1（当前基线）</option><option value="V2A">V2a（当前候选：只改节点 3 一条）</option><option value="V2">V2（已回滚，存档）</option></select></div>
+        <select id="evalVersion"><option value="V1">V1（严格基线）</option><option value="V3">V3（三层匹配+表达层改写，当前产品版）</option><option value="V2A">V2a（历史候选：只改节点 3 一条）</option><option value="V2">V2（已回滚，存档）</option></select></div>
       <div class="fld"><label>运行样本数</label>
         <select id="evalLimit"><option value="3">前 3 组（试跑）</option><option value="5">前 5 组</option><option value="all" selected>全部内置样本</option></select></div>
       <button class="primary" id="btnRunEval">运行评测</button>
@@ -546,7 +546,12 @@
   const EVAL_PROMPT_V2A = Object.assign({}, EVAL_PROMPT_V1, {
     n3:PROMPT_MATCH+'\n6. 不得仅因为能力名称出现在经历原文就判定「有直接证据」；必须确认原文描述的具体行动真正体现该能力。'
   });
-  const EVAL_PROMPTS_BY_VERSION = {V1:EVAL_PROMPT_V1, V2:EVAL_PROMPT_V2, V2A:EVAL_PROMPT_V2A};
+  // V3：事实层/表达层分离（产品页当前版本）；V1/V2/V2A 历史配置完全不动
+  const EVAL_PROMPT_V3 = {
+    n1:PROMPT_EXTRACT, n2:PROMPT_JD,
+    n3:PROMPT_MATCH_V3, n4:PROMPT_GAP_V3, n5:PROMPT_RESUME_V3, n6:PROMPT_VALIDATE_V3
+  };
+  const EVAL_PROMPTS_BY_VERSION = {V1:EVAL_PROMPT_V1, V2:EVAL_PROMPT_V2, V2A:EVAL_PROMPT_V2A, V3:EVAL_PROMPT_V3};
   const KEY_EVAL_RUNS = 'evalResults';
   const KEY_EVAL_SAMPLES = 'evalSamples';
   let evalBusy = false;
@@ -573,7 +578,7 @@
   function evalTickPromise(){ return evalTick() }
 
   // 单个样本跑完整 6 节点。P 为当前版本 prompt 配置；progress 回调更新界面。
-  async function runEvalCase(sample, P, progress){
+  async function runEvalCase(sample, P, progress, version){
     const out={id:sample.id, role:sample.role||'', note:sample.note||'', nodes:{}};
     const call=(n,prompt,messages,schema)=>{
       const t=performance.now();
@@ -619,20 +624,32 @@
       corpus.push(raw);
       expBriefs.push({project_name:e.project_name,raw_text:raw,confirmed_skills:e.skills.map(s=>s.label)});
     });
-    const m3=validateMatchResult(await call('n3',P.n3,
-      '请匹配。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
-      '\n\n--- 已确认经历（仅这些可用作证据） ---\n'+JSON.stringify(expBriefs,null,2),MATCH_SCHEMA));
-    m3.matches=enforceEvidenceOnMatches(m3.matches,corpus,exps);
+    const isV3 = version==='V3';
+    const m3 = isV3
+      ? validateMatchV3Result(await call('n3',P.n3,
+          '请匹配。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+          '\n\n--- 已确认经历（仅这些可用作证据） ---\n'+JSON.stringify(expBriefs,null,2),MATCH_V3_SCHEMA))
+      : validateMatchResult(await call('n3',P.n3,
+          '请匹配。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+          '\n\n--- 已确认经历（仅这些可用作证据） ---\n'+JSON.stringify(expBriefs,null,2),MATCH_SCHEMA));
+    m3.matches = isV3 ? enforceTransferV3(m3.matches,corpus,exps)
+                      : enforceEvidenceOnMatches(m3.matches,corpus,exps);
     abilities.forEach(a=>{ if(!m3.matches.some(m=>m.ability===a))
-      m3.matches.push({ability:a,experience:'',evidence:'',match_status:'暂无证据',reasoning:'模型未输出该能力，本地补暂无证据'}); });
+      m3.matches.push({ability:a,experience:'',evidence:'',match_status:'暂无证据',reasoning:'模型未输出该能力，本地补暂无证据',
+        ...(isV3?{transfer_fact:'',transfer_phrase:''}:{})}); });
+    if(isV3) out.transferable=(m3.matches||[]).filter(m=>m.match_status==='可迁移').length;
     out.matches=m3.matches;
     await evalTickPromise();
 
     // 节点 4：缺口识别 + 本地补齐
     if(progress) progress('节点 4 缺口识别');
-    const m4=validateGapResult(await call('n4',P.n4,
-      '请识别缺口。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
-      '\n\n--- 节点3 匹配结果 ---\n'+JSON.stringify({matches:m3.matches,missing_abilities:m3.missing_abilities},null,2),GAP_SCHEMA));
+    const m4 = isV3
+      ? validateGapV3Result(await call('n4',P.n4,
+          '请生成经历补完追问卡。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+          '\n\n--- 节点3 匹配结果 ---\n'+JSON.stringify({matches:m3.matches,missing_abilities:m3.missing_abilities},null,2),GAP_V3_SCHEMA))
+      : validateGapResult(await call('n4',P.n4,
+          '请识别缺口。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
+          '\n\n--- 节点3 匹配结果 ---\n'+JSON.stringify({matches:m3.matches,missing_abilities:m3.missing_abilities},null,2),GAP_SCHEMA));
     const gapAbilities=m4.gaps.map(g=>g.ability);
     m3.missing_abilities.forEach(a=>{ if(!gapAbilities.includes(a))
       m4.gaps.push({ability:a,gap_type:'暂无证据',question:'请补充一段能证明「'+a+'」的真实经历，描述你具体做了什么'}); });
@@ -641,10 +658,14 @@
 
     // 节点 5：简历生成 + 本地排序
     if(progress) progress('节点 5 简历生成');
-    const m5Input={jd_profile:jdProfile,confirmed_experiences:expBriefs,match_result:{matches:m3.matches}};
-    const r5=validateResumeResult(await call('n5',P.n5,
-      '请生成岗位定向简历。\n\n'+JSON.stringify(m5Input,null,2),RESUME_SCHEMA));
-    r5.projects=sortProjectsByMatch(r5.projects,{matches:m3.matches});
+    const m5Input={jd_profile:jdProfile,confirmed_experiences:expBriefs,match_result:{matches:m3.matches},
+      accepted_transfers:isV3?(m3.matches||[]).filter(x=>x.match_status==='可迁移').reduce((a,x)=>{
+        a[x.ability]={phrase:x.transfer_phrase,fact:x.transfer_fact,project:x.experience}; return a; },{}):{}};
+    const r5 = isV3
+      ? validateResumeV3Result(await call('n5',P.n5,'请生成岗位定向简历。\n\n'+JSON.stringify(m5Input,null,2),RESUME_V3_SCHEMA))
+      : validateResumeResult(await call('n5',P.n5,'请生成岗位定向简历。\n\n'+JSON.stringify(m5Input,null,2),RESUME_SCHEMA));
+    r5.projects = isV3 ? sortProjectsByMatchV3(r5.projects,{matches:m3.matches})
+                       : sortProjectsByMatch(r5.projects,{matches:m3.matches});
 
     // 构造与产品页一致的 src，供本地强校验使用
     const byName={}, confirmedSkillSet=new Set(); let allRaw='';
@@ -660,6 +681,8 @@
     const buggy=JSON.parse(JSON.stringify(r5));
     const first=buggy.projects[0];
     if(first){
+      if(isV3 && first.fact_map){ first.fact_map.responsibilities=first.fact_map.responsibilities||'';
+        first.fact_map.results=first.fact_map.results||''; }
       first.responsibilities=EVAL_INJECT.strongPrefix+String(first.responsibilities||'').replace(/参与|协助/g,'').trim();
       first.results=String(first.results||'')+'；转化率提升 '+EVAL_INJECT.number+'%';
     }
@@ -676,7 +699,7 @@
       '\n\n--- 已确认的能力标签（这些有原文依据，不算虚构；除外的才算） ---\n'+JSON.stringify(confirmedSkillsBrief,null,2)+
       '\n\n--- 生成的简历 ---\n'+JSON.stringify(buggy,null,2),VALIDATE_SCHEMA));
     out.modelRisks=r6.risk_items.map(r=>Object.assign({},r,{source:'模型'}));
-    out.localRisks=localFactCheck(buggy,src);
+    out.localRisks = isV3 ? localFactCheckV3(buggy,src) : localFactCheck(buggy,src);
     return out;
   }
 
@@ -758,6 +781,8 @@
       ['系统兜底后错误率',fmtPct(a.sysFactError),'模型校验 + 本地强校验合并后仍未检出的项 / 注入缺陷总数；'+fmtFrac(a.sysMiss,a.factTotal)+'。'],
       ['模型误报率',fmtPct(a.falseAlarmRate),'模型标为风险但不在注入缺陷集内的项 / 注入缺陷总数；'+fmtFrac(a.falseAlarm,a.factTotal)+'。'],
       ['JD 能力冗余',String(a.abilityExtra),'模型提取但人工标注中没有的能力数（衡量是否凭空增加要求）。'],
+      ['可迁移命中率 / 补完采纳率','待补标注 / 待验证',
+       'V3 新增能力：把「有相关事实但没用 JD 说法」的经历改写成贴合岗位的草稿。命中率需要标注集里新增「哪些能力属于可迁移」字段；采纳率需要真实用户点「采纳」。当前评测集两者都没有，不编数字。'],
       ['标签冗余 / 人工修改率 / 用户采用率','待验证（无真实用户数据）','本 Demo 无真实用户与埋点；不填 0、不估算。标签冗余数 '+a.skillExtra+' 仅作诊断，不等同人工修改率。']
     ];
   }
@@ -783,7 +808,8 @@
       lastEvalRun.cases.map(c=>{
         if(c.error) return '<tr><td>'+esc(c.id)+'</td><td colspan="4">'+esc(c.error)+'</td><td><span class="status-tag st-none">失败</span></td></tr>';
         const m=c.metrics;
-        return '<tr><td>'+esc(c.id)+'<div class="hint">'+esc(c.note||'')+'</div></td>'+
+        return '<tr><td>'+esc(c.id)+'<div class="hint">'+esc(c.note||'')+'</div>'+
+          (typeof c.transferable==='number'?'<div class="hint">可迁移 '+c.transferable+' 条</div>':'')+'</td>'+
           '<td>'+fmtPct(pct(m.ability.hit,m.ability.total))+' <span class="hint">'+m.ability.hit+'/'+m.ability.total+'</span></td>'+
           '<td>'+fmtPct(pct(m.skill.hit,m.skill.total))+' <span class="hint">'+m.skill.hit+'/'+m.skill.total+'</span></td>'+
           '<td>'+fmtPct(m.match.precision)+' / '+fmtPct(m.match.recall)+'</td>'+
@@ -864,7 +890,7 @@
       const sample=chosen[i];
       setEvalProgress(i+1,chosen.length,sample.id+' 开始');
       try{
-        const out=await runEvalCase(sample,P,step=>setEvalProgress(i+1,chosen.length,sample.id+' · '+step));
+        const out=await runEvalCase(sample,P,step=>setEvalProgress(i+1,chosen.length,sample.id+' · '+step),version);
         out.metrics=computeCaseMetrics(sample,out);
         cases.push(out);
         setEvalStatus('已完成 '+sample.id);

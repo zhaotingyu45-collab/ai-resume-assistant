@@ -380,3 +380,287 @@
     matchRecord.matches.forEach(m=>{ rank[m.experience] = m.match_status==='有直接证据'?0:m.match_status==='待确认'?1:2 });
     return projects.slice().sort((a,b)=>(rank[a.project_name]??1)-(rank[b.project_name]??1));
   }
+
+
+  /* ============================================================
+     V3 · 事实层 / 表达层分离（2026-11-25）
+     V1 常量与函数全部保留，评测历史可复现；V3 只被产品页使用。
+     事实层：事实点必须能映射回已确认经历原文（不是整句逐字复述）
+     表达层：允许按 JD 措辞改写，但数字 / 职责强度词锁定
+     匹配状态：有直接证据 / 可迁移 / 暂无证据
+     缺口：追问卡 → 用户回答 → 写回经历库（经历库可生长）
+     ============================================================ */
+  const MATCH_STATUS_V3 = ['有直接证据','可迁移','暂无证据'];
+  const MATCH_V3_SCHEMA = {
+    type:'object',additionalProperties:false,
+    properties:{
+      matches:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+        ability:{type:'string'},experience:{type:'string'},evidence:{type:'string'},
+        match_status:{type:'string'},reasoning:{type:'string'},
+        transfer_fact:{type:'string'},transfer_phrase:{type:'string'}},
+        required:['ability','experience','evidence','match_status','reasoning','transfer_fact','transfer_phrase']}},
+      missing_abilities:{type:'array',items:{type:'string'}}
+    },required:['matches','missing_abilities']
+  };
+  // PROMPTS.md 节点 3 · V3 全文
+  const PROMPT_MATCH_V3 = `你是岗位能力匹配助手。判断已确认经历能否证明 JD 的每项能力要求，并区分「直接命中」与「可迁移」。
+
+输入：JD 能力画像 + 用户已确认的经历列表。
+
+输出：只输出一个 JSON 对象：
+{
+  "matches": [
+    {
+      "ability": "JD 能力要求",
+      "experience": "命中的项目名，无则空字符串",
+      "evidence": "【仅直接命中】来自经历原文的连续片段；其余情况必须为空字符串",
+      "match_status": "有直接证据|可迁移|暂无证据",
+      "reasoning": "判断理由",
+      "transfer_fact": "【仅可迁移】经历里相关的事实点，必须是原文连续片段；其余情况为空字符串",
+      "transfer_phrase": "【仅可迁移】把该事实点按 JD 措辞改写的简历表达候选，不得新增事实、数字，不得提升职责强度；其余情况为空字符串"
+    }
+  ],
+  "missing_abilities": ["暂无证据的能力要求"]
+}
+
+三档定义：
+- 有直接证据：经历原文直接体现该能力，evidence 为原文连续片段。
+- 可迁移：经历里有相关事实，但原文没有用 JD 的说法表述（例：原文写「访谈了 12 位用户」，JD 要求「用户研究」）。此时 transfer_fact 填原文事实片段，transfer_phrase 给出按 JD 措辞的改写候选，交给用户确认。
+- 暂无证据：经历库里找不到任何相关事实，四个文本字段全部为空。
+
+强约束：
+1. evidence 与 transfer_fact 必须是经历原文中真实存在的连续片段，不得改写或拼接；找不到原文依据就判「暂无证据」。
+2. 禁止仅凭关键词相似判「有直接证据」；原文提到相关事实但没用 JD 术语时判「可迁移」。
+3. transfer_phrase 只能换说法：不得出现原文没有的数字，不得把「参与/协助」写成「主导/独立负责/牵头」。
+4. 只能使用 confirmation_status 为「已确认」的经历与标签，待确认内容不得作为证据。
+5. 每项 ability 只输出一行，状态必须是三档之一。`;
+
+  const GAP_V3_SCHEMA = {
+    type:'object',additionalProperties:false,
+    properties:{gaps:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+      ability:{type:'string'},gap_type:{type:'string'},question:{type:'string'},target_project:{type:'string'}},
+      required:['ability','gap_type','question','target_project']}}},
+    required:['gaps']
+  };
+  // PROMPTS.md 节点 4 · V3 全文
+  const PROMPT_GAP_V3 = `你是经历补完助手。根据匹配结果生成「追问卡」，让用户用一句话就能补上缺失事实。
+
+输入：JD 能力画像 + 节点 3 的匹配结果。
+
+输出：只输出一个 JSON 对象：
+{
+  "gaps": [
+    {
+      "ability": "待补完的能力",
+      "gap_type": "暂无证据|可迁移确认",
+      "question": "具体、可直接回答的追问",
+      "target_project": "若信息应补进某条已有经历，填项目名；否则空字符串"
+    }
+  ]
+}
+
+强约束：
+1. match_status 为「暂无证据」的能力，gap_type 填「暂无证据」，question 必须问一个用户能回答的事实问题（例：「你参与 AI 音乐生成模块时做过效果评测吗？用的什么方法？」），禁止笼统问「请补充相关经验」。
+2. match_status 为「可迁移」的能力，gap_type 填「可迁移确认」，question 写成让用户确认或修正改写表达的一句话，target_project 填匹配到的项目名。
+3. 每条缺口只问一类信息；一次最多输出 3 条，按对岗位的重要性排序。
+4. missing_abilities 中每项都必须出现在 gaps 中，不得遗漏。`;
+
+  const RESUME_V3_SCHEMA = {
+    type:'object',additionalProperties:false,
+    properties:{
+      summary:{type:'string'},
+      projects:{type:'array',items:{type:'object',additionalProperties:false,properties:{
+        project_name:{type:'string'},background:{type:'string'},responsibilities:{type:'string'},
+        actions:{type:'string'},results:{type:'string'},
+        fact_map:{type:'object',additionalProperties:false,properties:{
+          background:{type:'string'},responsibilities:{type:'string'},
+          actions:{type:'string'},results:{type:'string'}},
+          required:['background','responsibilities','actions','results']}},
+        required:['project_name','background','responsibilities','actions','results','fact_map']}},
+      skills:{type:'array',items:{type:'string'}}
+    },required:['summary','projects','skills']
+  };
+  // PROMPTS.md 节点 5 · V3 全文
+  const PROMPT_RESUME_V3 = `你是岗位定向简历生成助手。基于已确认经历生成「一岗一版」简历：事实层严格，表达层可改写。
+
+输入：JD 能力画像 + 已确认经历（原文 + 已确认标签）+ 匹配结果 + 用户已采纳的迁移表达。
+
+输出：只输出一个 JSON 对象：
+{
+  "summary": "个人概述，事实可追溯",
+  "projects": [
+    {
+      "project_name": "与原始经历完全一致",
+      "background": "项目背景",
+      "responsibilities": "个人职责，保留原职责强度",
+      "actions": "具体行动",
+      "results": "仅使用原文提供的结果，原文没有则空字符串",
+      "fact_map": {
+        "background": "支撑 background 的原文连续片段",
+        "responsibilities": "支撑职责的原文连续片段",
+        "actions": "支撑行动的原文连续片段",
+        "results": "支撑结果的原文连续片段；原文无结果则空字符串"
+      }
+    }
+  ],
+  "skills": ["只使用已确认的能力标签"]
+}
+
+两层规则：
+【事实层】
+1. fact_map 的每项值必须是该条经历原文中真实存在的连续片段，不得改写、拼接或凭空生成；无法支撑时该字段的可写文本也必须为空。
+2. 生成文本中出现的数字必须能在原文核到；原文无结果时 results 必须为空字符串。
+3. 职责强度词不得升级：「参与/协助」不能写成「主导/独立负责/牵头」；项目名必须与原文完全一致。
+4. 只能使用已确认经历与标签，禁止使用待确认内容；不得新增原文不存在的能力标签。
+【表达层】
+5. responsibilities / actions / background 允许按 JD 措辞改写与重排重点，只要 fact_map 能映射回原文且第 2、3 条不被违反。
+6. 若输入中给出「用户已采纳的迁移表达」，优先采用该措辞；它仍然受第 2、3 条约束。
+7. 根据匹配结果排序项目：有直接证据优先，可迁移次之，暂无证据最后。`;
+  // PROMPTS.md 节点 6 · V3 全文
+  const PROMPT_VALIDATE_V3 = `你是简历事实校验助手。按「事实层严格、表达层可改写」的标准对照已确认经历检查生成简历。
+
+输入：已确认经历原文 + 已确认标签 + 生成简历（含 fact_map）+ 用户已采纳的迁移表达。
+
+输出：只输出一个 JSON 对象：
+{
+  "risk_level": "高|中|低",
+  "risk_items": [
+    {
+      "content": "存在风险的表述",
+      "risk_type": "事实点未映射|职责夸大|虚构数据|项目名不一致|新增未提供内容|待确认写成事实",
+      "level": "高|中|低",
+      "original_evidence": "对应的原文片段，无则空字符串",
+      "suggestion": "修改建议"
+    }
+  ]
+}
+
+强约束：
+1. 表达层改写本身不是风险：只要 fact_map 的对应项能在原文找到，且数字、职责强度、项目名未变，就不要标为风险。
+2. fact_map 任一项不是原文连续片段，或生成字段有内容但没有事实映射，标为「事实点未映射」（高）。
+3. 职责强度升级（参与→主导）、原文没有的数字、原文无结果却写结果、项目名不一致、未确认标签，均标高风险。
+4. 采纳过的迁移表达若违反第 3 条，同样标高风险——用户采纳不等于事实成立。
+5. 每项风险给出 original_evidence；找不到时输出空字符串，不得编造。
+6. 只标注风险，不直接改写简历；最终以用户人工审核为准。`;
+
+  function validateMatchV3Result(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    if(!Array.isArray(data.matches)||!Array.isArray(data.missing_abilities)) throw new Error('matches / missing_abilities 必须是数组');
+    data.matches.forEach((m,i)=>{
+      for(const k of ['ability','experience','evidence','match_status','reasoning','transfer_fact','transfer_phrase'])
+        if(typeof m?.[k]!=='string') throw new Error('matches 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+      if(MATCH_STATUS_V3.indexOf(m.match_status)===-1) throw new Error('matches 第 '+(i+1)+' 项状态非法');
+    });
+    return data;
+  }
+  function validateGapV3Result(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    if(!Array.isArray(data.gaps)) throw new Error('gaps 必须是数组');
+    data.gaps.forEach((g,i)=>{
+      for(const k of ['ability','gap_type','question','target_project'])
+        if(typeof g?.[k]!=='string') throw new Error('gaps 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+      if(['暂无证据','可迁移确认','待确认'].indexOf(g.gap_type)===-1) throw new Error('gaps 第 '+(i+1)+' 项 gap_type 非法');
+    });
+    return data;
+  }
+  function validateResumeV3Result(data){
+    if(!data||typeof data!=='object'||Array.isArray(data)) throw new Error('输出必须是 JSON 对象');
+    for(const k of RESUME_V3_SCHEMA.required) if(!(k in data)) throw new Error('缺少字段：'+k);
+    if(typeof data.summary!=='string'||!Array.isArray(data.projects)||!Array.isArray(data.skills))
+      throw new Error('summary/projects/skills 类型错误');
+    data.projects.forEach((p,i)=>{
+      for(const k of ['project_name','background','responsibilities','actions','results'])
+        if(typeof p?.[k]!=='string') throw new Error('projects 第 '+(i+1)+' 项字段 '+k+' 必须是字符串');
+      if(!p.fact_map||typeof p.fact_map!=='object') throw new Error('projects 第 '+(i+1)+' 项缺少 fact_map');
+      for(const k of ['background','responsibilities','actions','results'])
+        if(typeof p.fact_map[k]!=='string') throw new Error('projects 第 '+(i+1)+' 项 fact_map.'+k+' 必须是字符串');
+    });
+    if(data.skills.some(x=>typeof x!=='string')) throw new Error('skills 必须是字符串数组');
+    return data;
+  }
+  // 本地校验迁移表达：事实点必须是原文子串；改写草稿不得出现新数字或升级职责强度
+  function enforceTransferV3(matches, corpus, exps){
+    const corpusText = corpus.join('\n');
+    const names = exps.map(e=>e.project_name);
+    const strong = /(主导|独立负责|牵头|负责整个|从\s*0\s*到\s*1|全权)/;
+    const weak = /(参与|协助|配合)/;
+    const nums = s => (String(s||'').match(/\d+(?:\.\d+)?/g)||[]);
+    return matches.map(m=>{
+      const out = Object.assign({}, m);
+      if(out.match_status==='有直接证据'){
+        if(!out.evidence || corpusText.indexOf(out.evidence)===-1){
+          out.evidence=''; out.match_status='暂无证据';
+          out.reasoning=(out.reasoning||'')+' [本地校验：证据非原文，已降级]';
+        }
+        if(out.experience && names.indexOf(out.experience)===-1){
+          out.experience=''; out.evidence=''; out.match_status='暂无证据';
+          out.reasoning=(out.reasoning||'')+' [本地校验：项目名不在已确认经历，已降级]';
+        }
+      }else if(out.match_status==='可迁移'){
+        const factOk = out.transfer_fact && corpusText.indexOf(out.transfer_fact)!==-1;
+        const projectOk = out.experience && names.indexOf(out.experience)!==-1;
+        const factNums = nums(out.transfer_fact), phraseNums = nums(out.transfer_phrase);
+        const numOk = phraseNums.every(n=>factNums.indexOf(n)!==-1);
+        const strongOk = !(weak.test(out.transfer_fact||'') && strong.test(out.transfer_phrase||''));
+        if(!factOk || !projectOk || !numOk || !strongOk){
+          out.match_status='暂无证据'; out.transfer_fact=''; out.transfer_phrase=''; out.evidence=''; out.experience='';
+          out.reasoning=(out.reasoning||'')+' [本地校验：迁移事实/措辞越界，已降级]';
+        }else{
+          out.evidence=''; // 可迁移不是直接证据，禁止把改写草稿当证据
+        }
+      }
+      if(out.match_status==='暂无证据'){ out.evidence=''; out.transfer_fact=''; out.transfer_phrase=''; }
+      return out;
+    });
+  }
+  // V3 本地事实校验：核对 fact_map 事实点映射 + 数字/强度词/标签高风险
+  function localFactCheckV3(resume, src){
+    const risks=[];
+    const push=(content,risk_type,level,original_evidence,suggestion)=>
+      risks.push({content,risk_type,level,original_evidence,suggestion,source:'本地'});
+    const nums = s => (String(s||'').match(/\d+(?:\.\d+)?/g)||[]);
+    const strong = /(主导|独立负责|牵头|负责整个|从\s*0\s*到\s*1|全权)/;
+    const weak = /(参与|协助|配合)/;
+    (resume.projects||[]).forEach(p=>{
+      const s = src.byName[p.project_name];
+      if(!s){ push('项目「'+p.project_name+'」不在已确认经历中','项目名不一致','高','',
+        '删除该项目，或先在经历库补录并确认这段经历'); return }
+      const raw = s.raw||'';
+      const fm = p.fact_map||{};
+      [['background','项目背景'],['responsibilities','个人职责'],['actions','具体行动'],['results','项目结果']].forEach(([k,label])=>{
+        const text=String(p[k]||''), fact=String(fm[k]||'');
+        if(!text) return;
+        if(!fact) push('「'+p.project_name+'」'+label+'缺少 fact_map 事实映射','事实点未映射','中','',
+          '补上支撑该表述的原文片段，或删掉这句话');
+        else if(raw.indexOf(fact)===-1) push('「'+p.project_name+'」'+label+'的 fact_map 不是原文连续片段','事实点未映射','高',fact,
+          '把 fact_map 改成经历原文中真实存在的一段话');
+        // 即使 fact_map 缺失，仍用整条原文兜底检查数字与强度词，不能让中风险掩盖高风险
+        const genNums=nums(text), srcNums=nums(raw);
+        const invented=genNums.filter(n=>srcNums.indexOf(n)===-1);
+        if(invented.length) push('「'+p.project_name+'」'+label+'含原文没有的数字：'+invented.join('、'),
+          '虚构数据','高',fact||raw.slice(0,80),'删除或改回原文真实数据');
+        if((weak.test(fact)||weak.test(raw)) && strong.test(text))
+          push('「'+p.project_name+'」'+label+'把参与/协助写成了主导','职责夸大','高',fact||raw.slice(0,80),
+            '改回原文强度，如「参与」「协助」');
+      });
+      if(!(s.fields.results||'') && p.results)
+        push('「'+p.project_name+'」原文无结果，简历却写了结果','新增未提供内容','高','',
+          '结果字段留空；如需写成果，先补充真实结果并确认');
+    });
+    (resume.skills||[]).forEach(sk=>{
+      const label=String(sk).trim();
+      if(label && !src.confirmedSkillSet.has(label))
+        push('能力标签「'+label+'」不是已确认标签','待确认写成事实','高','',
+          '删除该标签，或先到经历库确认包含该能力的标签');
+    });
+    if(nums(resume.summary).some(n=>nums(src.allRaw).indexOf(n)===-1))
+      push('个人概述含原文没有的数字','虚构数据','高','','概述中删除该数字，只保留可追溯信息');
+    return risks;
+  }
+  function sortProjectsByMatchV3(projects, matchRecord){
+    if(!matchRecord||!Array.isArray(matchRecord.matches)) return projects;
+    const rank={};
+    matchRecord.matches.forEach(m=>{ rank[m.experience]=
+      m.match_status==='有直接证据'?0:m.match_status==='可迁移'?1:2 });
+    return projects.slice().sort((a,b)=>(rank[a.project_name]??1)-(rank[b.project_name]??1));
+  }
