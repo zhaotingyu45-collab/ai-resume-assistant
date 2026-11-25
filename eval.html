@@ -359,7 +359,11 @@
           {ability:'跨团队沟通',experience:'AI 音乐生成模块',status:'有直接证据'}
         ],
         skill_labels:['功能设计','流程梳理','参数逻辑设计'],
-        fact_check:[]
+        fact_check:[],
+        // V3 标注：有原文事实、但表述与 JD 术语不同，可按 JD 措辞改写
+        transferable:[{ability:'用户需求分析',fact:'梳理用户创作流程与核心参数逻辑'}],
+        // V3 标注：原文无事实、必须靠用户补充经历才能补完的缺口
+        gap_answerable:['模型效果评估']
       }
     },
     {
@@ -380,7 +384,10 @@
           {ability:'原型设计',experience:'AI 简历工具',status:'有直接证据'}
         ],
         skill_labels:['需求调研','原型设计','用户反馈整理'],
-        fact_check:[{type:'职责夸大',keyword:'主导',level:'高'}]
+        fact_check:[{type:'职责夸大',keyword:'主导',level:'高'}],
+        // 「产品从0到1建设」原文只有「协助/参与」，不能作为可迁移（会变成夸大）
+        transferable:[],
+        gap_answerable:['产品从0到1建设','数据增长']
       }
     },
     {
@@ -403,7 +410,9 @@
           {ability:'数据分析',experience:'校园社区用户调研',status:'有直接证据'}
         ],
         skill_labels:['用户调研','A/B 实验','数据分析'],
-        fact_check:[]
+        fact_check:[],
+        transferable:[],
+        gap_answerable:['增长策略']
       }
     },
     {
@@ -427,7 +436,9 @@
           {ability:'跨部门协作',experience:'效果评估',status:'有直接证据'}
         ],
         skill_labels:['Prompt 设计','badcase 分析','效果评估'],
-        fact_check:[]
+        fact_check:[],
+        transferable:[],
+        gap_answerable:['AI 应用落地']
       }
     },
     {
@@ -448,7 +459,10 @@
           {ability:'产品规划',experience:'产品规划文档',status:'有直接证据'}
         ],
         skill_labels:['竞品整理','产品规划'],
-        fact_check:[]
+        fact_check:[],
+        // 原文有「竞品相关的整理工作」，按 JD 措辞可改写为「竞品分析」——事实层同源、表达层迁移
+        transferable:[{ability:'竞品分析',fact:'竞品相关的整理工作'}],
+        gap_answerable:['用户访谈','商业分析']
       }
     },
     {
@@ -470,7 +484,9 @@
           {ability:'流程优化',experience:'新用户引导流程优化',status:'有直接证据'}
         ],
         skill_labels:['漏斗分析','流程优化'],
-        fact_check:[]
+        fact_check:[],
+        transferable:[],
+        gap_answerable:['增长实验','结果量化']
       }
     },
     {
@@ -492,7 +508,10 @@
           {ability:'跨团队协作',experience:'内容排期与反馈整理',status:'有直接证据'}
         ],
         skill_labels:['内容排期','用户反馈分析'],
-        fact_check:[{type:'职责夸大',keyword:'独立负责',level:'高'}]
+        fact_check:[{type:'职责夸大',keyword:'独立负责',level:'高'}],
+        // 「内容策略」原文没有策略制定事实，只有排期整理，不能迁移，只能追问补完
+        transferable:[],
+        gap_answerable:['内容策略']
       }
     },
     {
@@ -515,7 +534,9 @@
           {ability:'项目推进',experience:'需求池管理',status:'有直接证据'}
         ],
         skill_labels:['需求管理','文档撰写','项目推进'],
-        fact_check:[]
+        fact_check:[],
+        transferable:[],
+        gap_answerable:[]
       }
     }
   ];
@@ -650,6 +671,8 @@
       : validateGapResult(await call('n4',P.n4,
           '请识别缺口。\n\n--- JD 能力画像 ---\n'+JSON.stringify(jdProfile,null,2)+
           '\n\n--- 节点3 匹配结果 ---\n'+JSON.stringify({matches:m3.matches,missing_abilities:m3.missing_abilities},null,2),GAP_SCHEMA));
+    // 先留存模型原生追问卡：指标只统计它，下面的本地兜底通用问题不得计入（否则覆盖率虚高）
+    out.modelGaps=(m4.gaps||[]).map(g=>({ability:g.ability,question:g.question,gap_type:g.gap_type}));
     const gapAbilities=m4.gaps.map(g=>g.ability);
     m3.missing_abilities.forEach(a=>{ if(!gapAbilities.includes(a))
       m4.gaps.push({ability:a,gap_type:'暂无证据',question:'请补充一段能证明「'+a+'」的真实经历，描述你具体做了什么'}); });
@@ -742,15 +765,35 @@
     const modelMiss=gtRisks.filter(r=>!riskDetected(modelRisks,r)).length;
     const sysMiss=gtRisks.filter(r=>!riskDetected(allRisks,r)).length;
     const falseAlarm=modelRisks.filter(r=>!gtRisks.some(g=>riskDetected([r],g))).length;
+
+    // V3-a 可迁移命中率：标注「有事实基础、可按 JD 措辞改写」的能力中，
+    // 模型判为「可迁移」且经 enforceTransferV3 本地校验后仍保留的比例（recall 视角）。
+    // 同时统计模型判可迁移但标注里没有的项（冗余），防止「全部判可迁移」刷高命中率。
+    const gtTransfer=uniq((gt.transferable||[]).map(t=>normLabel(t.ability)));
+    const predTransfer=uniq((out.matches||[]).filter(m=>m.match_status==='可迁移').map(m=>normLabel(m.ability)));
+    const transferHit=gtTransfer.filter(a=>predTransfer.includes(a)).length;
+    const transferExtra=predTransfer.filter(a=>!gtTransfer.includes(a)).length;
+
+    // V3-b 追问卡覆盖率：标注「必须追问补完」的缺口能力中，模型原生追问卡点名的比例。
+    // 只看 out.modelGaps（模型生成），本地兜底补的通用问题不计入，否则覆盖率虚高。
+    // 口径是「能力是否被点名」，问题质量（一句话可回答）仍靠人工，不编数字。
+    const gtGap=uniq((gt.gap_answerable||[]).map(normLabel));
+    const modelGapAbilities=uniq((out.modelGaps||[]).map(g=>normLabel(g.ability)).filter(Boolean));
+    const gapHit=gtGap.filter(a=>modelGapAbilities.includes(a)).length;
+    const gapExtra=modelGapAbilities.filter(a=>!gtGap.includes(a)).length;
+
     return {ability:{hit:abilityHit,total:gtAbilities.length,extra:abilityExtra},
       skill:{hit:skillHit,total:gtSkills.length,extra:skillExtra},
       match:{tp,fp,fn,precision:pct(tp,tp+fp),recall:pct(tp,tp+fn),predN:predPos.length,gtN:gtPos.length},
-      fact:{total:gtRisks.length,modelMiss,sysMiss,falseAlarm}};
+      fact:{total:gtRisks.length,modelMiss,sysMiss,falseAlarm},
+      transfer:{hit:transferHit,total:gtTransfer.length,extra:transferExtra,predN:predTransfer.length},
+      gap:{hit:gapHit,total:gtGap.length,extra:gapExtra,predN:modelGapAbilities.length}};
   }
   function aggregateMetrics(cases){
     const s={n:0,error:0,abilityHit:0,abilityTotal:0,abilityExtra:0,
       skillHit:0,skillTotal:0,skillExtra:0,tp:0,fp:0,fn:0,
-      factTotal:0,modelMiss:0,sysMiss:0,falseAlarm:0};
+      factTotal:0,modelMiss:0,sysMiss:0,falseAlarm:0,
+      transferHit:0,transferTotal:0,transferExtra:0,gapHit:0,gapTotal:0,gapExtra:0};
     cases.forEach(c=>{
       if(c.error||!c.metrics){ s.error++; return }
       s.n++;
@@ -760,12 +803,16 @@
       s.tp+=m.match.tp; s.fp+=m.match.fp; s.fn+=m.match.fn;
       s.factTotal+=m.fact.total; s.modelMiss+=m.fact.modelMiss;
       s.sysMiss+=m.fact.sysMiss; s.falseAlarm+=m.fact.falseAlarm;
+      if(m.transfer){ s.transferHit+=m.transfer.hit; s.transferTotal+=m.transfer.total;
+        s.transferExtra+=m.transfer.extra; }
+      if(m.gap){ s.gapHit+=m.gap.hit; s.gapTotal+=m.gap.total; s.gapExtra+=m.gap.extra; }
     });
     return {...s,
       abilityAcc:pct(s.abilityHit,s.abilityTotal), skillAcc:pct(s.skillHit,s.skillTotal),
       precision:pct(s.tp,s.tp+s.fp), recall:pct(s.tp,s.tp+s.fn),
       factError:pct(s.modelMiss,s.factTotal), sysFactError:pct(s.sysMiss,s.factTotal),
-      falseAlarmRate:pct(s.falseAlarm,s.factTotal)};
+      falseAlarmRate:pct(s.falseAlarm,s.factTotal),
+      transferAcc:pct(s.transferHit,s.transferTotal), gapCover:pct(s.gapHit,s.gapTotal)};
   }
   const fmtPct = v=> v===null?'—':v+'%';
   const fmtFrac = (a,b)=>a+'/'+b;
@@ -781,9 +828,15 @@
       ['系统兜底后错误率',fmtPct(a.sysFactError),'模型校验 + 本地强校验合并后仍未检出的项 / 注入缺陷总数；'+fmtFrac(a.sysMiss,a.factTotal)+'。'],
       ['模型误报率',fmtPct(a.falseAlarmRate),'模型标为风险但不在注入缺陷集内的项 / 注入缺陷总数；'+fmtFrac(a.falseAlarm,a.factTotal)+'。'],
       ['JD 能力冗余',String(a.abilityExtra),'模型提取但人工标注中没有的能力数（衡量是否凭空增加要求）。'],
-      ['可迁移命中率 / 补完采纳率','待补标注 / 待验证',
-       'V3 新增能力：把「有相关事实但没用 JD 说法」的经历改写成贴合岗位的草稿。命中率需要标注集里新增「哪些能力属于可迁移」字段；采纳率需要真实用户点「采纳」。当前评测集两者都没有，不编数字。'],
-      ['标签冗余 / 人工修改率 / 用户采用率','待验证（无真实用户数据）','本 Demo 无真实用户与埋点；不填 0、不估算。标签冗余数 '+a.skillExtra+' 仅作诊断，不等同人工修改率。']
+      ...(lastEvalRun&&lastEvalRun.version==='V3'?[
+        ['可迁移命中率（V3）',fmtPct(a.transferAcc),
+         '标注「有原文事实、可按 JD 措辞改写」的能力中，模型判为可迁移且通过本地迁移校验的比例；'+fmtFrac(a.transferHit,a.transferTotal)+'。模型另判可迁移但标注未列 '+a.transferExtra+' 项，单列为冗余，防止「全判可迁移」刷高命中。'],
+        ['追问卡覆盖率（V3）',fmtPct(a.gapCover),
+         '标注「原文无事实、必须追问补完」的缺口中，模型原生追问卡点名的比例；'+fmtFrac(a.gapHit,a.gapTotal)+'。本地兜底补的通用问题不计入。问题是否真的「一句话可回答」需人工判读，不编采纳率。']
+      ]:[
+        ['可迁移命中率 / 追问卡覆盖率','—（当前版本不适用）','这两项衡量 V3 的表达层改写能力；V1/V2/V2a 没有「可迁移」状态与追问卡语义，强行计算会得到 0% 的假象，故只在 V3 版本展示。']
+      ]),
+      ['补完采纳率 / 标签人工修改率 / 用户采用率','待验证（无真实用户数据）','本 Demo 无真实用户与埋点；采纳率需要真实用户点「采纳」，不填 0、不估算。标签冗余数 '+a.skillExtra+' 仅作诊断，不等同人工修改率。']
     ];
   }
   function renderEvalAgg(){
@@ -927,7 +980,9 @@
         '经历匹配 Recall':'TP / (TP+FN)，分母=标注有直接证据项',
         '事实错误率':'注入缺陷漏检数 / 注入缺陷总数（模型单独统计）',
         '系统兜底后错误率':'模型 + 本地强校验合并后漏检数 / 注入缺陷总数',
-        '人工修改率 / 用户采用率':'待验证（无真实用户数据）'},
+        '可迁移命中率（V3）':'标注为可迁移的能力中，模型判可迁移且通过本地迁移校验的比例；冗余项单列',
+        '追问卡覆盖率（V3）':'标注缺口中模型原生追问卡点名的比例；本地兜底通用问题不计入；问题质量与采纳率仍需人工/真实用户',
+        '补完采纳率 / 人工修改率 / 用户采用率':'待验证（无真实用户数据）'},
       runs};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
