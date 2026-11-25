@@ -731,14 +731,18 @@
   const pct = (hit,total)=> total>0 ? Math.round(hit/total*1000)/10 : null;
   const uniq = arr=>Array.from(new Set(arr));
   const RISK_COMPAT = {'待确认写成事实':['待确认写成事实','新增未提供内容']};
+  // 缺陷被检出：类型匹配「或」内容/证据命中缺陷关键词。
+  // 不能要求两者同时满足——V3 新增的「事实点未映射」会重复标注同一个虚构数字（内容含 73），
+  // 类型不匹配就漏算，会让误报率虚高。关键词是特定串（主导/73/全局产品战略），内容兜底误判风险低。
   function riskDetected(risks, item){
-    const type=normLabel(item.type||''), kw=normLabel(item.keyword||'');
+    const kw=normLabel(item.keyword||'');
     const accepted=RISK_COMPAT[item.type]||[item.type];
     return risks.some(r=>{
       const rt=normLabel(r.risk_type||'');
       const text=normLabel((r.content||'')+' '+(r.original_evidence||''));
       const typeOk=accepted.some(a=>rt===normLabel(a));
-      return typeOk && (!kw || text.indexOf(kw)!==-1);
+      const contentOk=!!kw && text.indexOf(kw)!==-1;
+      return typeOk || contentOk;
     });
   }
   function computeCaseMetrics(sample, out){
@@ -764,15 +768,22 @@
     const modelRisks=out.modelRisks||[], localRisks=out.localRisks||[], allRisks=modelRisks.concat(localRisks);
     const modelMiss=gtRisks.filter(r=>!riskDetected(modelRisks,r)).length;
     const sysMiss=gtRisks.filter(r=>!riskDetected(allRisks,r)).length;
+    // 误报率分母 = 模型实际标出的风险条数，不是注入缺陷总数。
+    // 旧口径 falseAlarm/factTotal 会把「模型标 44 条、其中 20 条无据」算成 20/25=80%，
+    // 真实含义是 20/44=45.5%。两种都保留，前者单列为旧口径便于历史对照。
     const falseAlarm=modelRisks.filter(r=>!gtRisks.some(g=>riskDetected([r],g))).length;
 
     // V3-a 可迁移命中率：标注「有事实基础、可按 JD 措辞改写」的能力中，
     // 模型判为「可迁移」且经 enforceTransferV3 本地校验后仍保留的比例（recall 视角）。
-    // 同时统计模型判可迁移但标注里没有的项（冗余），防止「全部判可迁移」刷高命中率。
-    const gtTransfer=uniq((gt.transferable||[]).map(t=>normLabel(t.ability)));
-    const predTransfer=uniq((out.matches||[]).filter(m=>m.match_status==='可迁移').map(m=>normLabel(m.ability)));
-    const transferHit=gtTransfer.filter(a=>predTransfer.includes(a)).length;
-    const transferExtra=predTransfer.filter(a=>!gtTransfer.includes(a)).length;
+    // 命中按「事实片段」匹配，不按能力名——V3 的事实层/表达层分离决定了能力名可以漂移
+    // （标注「用户需求分析」，模型写「用户需求分析能力」），但事实片段必须同源。
+    // 同时统计模型判可迁移但事实片段不在标注里的项（冗余），防止「全判可迁移」刷高命中率。
+    const factMatch=(a,b)=>{const x=normLabel(a),y=normLabel(b);
+      return !!x && !!y && (x.indexOf(y)!==-1 || y.indexOf(x)!==-1)};
+    const gtTransfer=(gt.transferable||[]).filter(t=>t&&t.fact);
+    const predTransfer=(out.matches||[]).filter(m=>m&&m.match_status==='可迁移'&&m.transfer_fact);
+    const transferHit=gtTransfer.filter(t=>predTransfer.some(m=>factMatch(t.fact,m.transfer_fact))).length;
+    const transferExtra=predTransfer.filter(m=>!gtTransfer.some(t=>factMatch(t.fact,m.transfer_fact))).length;
 
     // V3-b 追问卡覆盖率：标注「必须追问补完」的缺口能力中，模型原生追问卡点名的比例。
     // 只看 out.modelGaps（模型生成），本地兜底补的通用问题不计入，否则覆盖率虚高。
@@ -785,14 +796,14 @@
     return {ability:{hit:abilityHit,total:gtAbilities.length,extra:abilityExtra},
       skill:{hit:skillHit,total:gtSkills.length,extra:skillExtra},
       match:{tp,fp,fn,precision:pct(tp,tp+fp),recall:pct(tp,tp+fn),predN:predPos.length,gtN:gtPos.length},
-      fact:{total:gtRisks.length,modelMiss,sysMiss,falseAlarm},
+      fact:{total:gtRisks.length,modelMiss,sysMiss,falseAlarm,modelRisksN:modelRisks.length},
       transfer:{hit:transferHit,total:gtTransfer.length,extra:transferExtra,predN:predTransfer.length},
       gap:{hit:gapHit,total:gtGap.length,extra:gapExtra,predN:modelGapAbilities.length}};
   }
   function aggregateMetrics(cases){
     const s={n:0,error:0,abilityHit:0,abilityTotal:0,abilityExtra:0,
       skillHit:0,skillTotal:0,skillExtra:0,tp:0,fp:0,fn:0,
-      factTotal:0,modelMiss:0,sysMiss:0,falseAlarm:0,
+      factTotal:0,modelMiss:0,sysMiss:0,falseAlarm:0,modelRisksN:0,
       transferHit:0,transferTotal:0,transferExtra:0,gapHit:0,gapTotal:0,gapExtra:0};
     cases.forEach(c=>{
       if(c.error||!c.metrics){ s.error++; return }
@@ -803,6 +814,7 @@
       s.tp+=m.match.tp; s.fp+=m.match.fp; s.fn+=m.match.fn;
       s.factTotal+=m.fact.total; s.modelMiss+=m.fact.modelMiss;
       s.sysMiss+=m.fact.sysMiss; s.falseAlarm+=m.fact.falseAlarm;
+      s.modelRisksN+=(m.fact.modelRisksN||0);
       if(m.transfer){ s.transferHit+=m.transfer.hit; s.transferTotal+=m.transfer.total;
         s.transferExtra+=m.transfer.extra; }
       if(m.gap){ s.gapHit+=m.gap.hit; s.gapTotal+=m.gap.total; s.gapExtra+=m.gap.extra; }
@@ -811,7 +823,8 @@
       abilityAcc:pct(s.abilityHit,s.abilityTotal), skillAcc:pct(s.skillHit,s.skillTotal),
       precision:pct(s.tp,s.tp+s.fp), recall:pct(s.tp,s.tp+s.fn),
       factError:pct(s.modelMiss,s.factTotal), sysFactError:pct(s.sysMiss,s.factTotal),
-      falseAlarmRate:pct(s.falseAlarm,s.factTotal),
+      falseAlarmRate:pct(s.falseAlarm,s.modelRisksN),
+      falseAlarmRateOld:pct(s.falseAlarm,s.factTotal),
       transferAcc:pct(s.transferHit,s.transferTotal), gapCover:pct(s.gapHit,s.gapTotal)};
   }
   const fmtPct = v=> v===null?'—':v+'%';
@@ -826,11 +839,13 @@
       ['经历匹配 Recall',fmtPct(a.recall),'命中有直接证据项 / 标注有直接证据项总数；TP '+a.tp+' / FN '+a.fn+'。'],
       ['事实错误率（模型漏检）',fmtPct(a.factError),'评测时对生成简历注入 3 类已知缺陷（职责夸大 / 虚构数字 / 未确认标签），模型未检出项 / 注入缺陷总数；'+fmtFrac(a.modelMiss,a.factTotal)+'。'],
       ['系统兜底后错误率',fmtPct(a.sysFactError),'模型校验 + 本地强校验合并后仍未检出的项 / 注入缺陷总数；'+fmtFrac(a.sysMiss,a.factTotal)+'。'],
-      ['模型误报率',fmtPct(a.falseAlarmRate),'模型标为风险但不在注入缺陷集内的项 / 注入缺陷总数；'+fmtFrac(a.falseAlarm,a.factTotal)+'。'],
+      ['模型误报率',fmtPct(a.falseAlarmRate),
+       '模型标为风险但无据（类型不匹配且内容/证据未命中缺陷关键词）的条数 / 模型实际标出的风险条数；'+fmtFrac(a.falseAlarm,a.modelRisksN)+
+       '。旧口径除以缺陷总数为 '+fmtPct(a.falseAlarmRateOld)+'，会高估误报，保留仅为历史对照。'],
       ['JD 能力冗余',String(a.abilityExtra),'模型提取但人工标注中没有的能力数（衡量是否凭空增加要求）。'],
       ...(lastEvalRun&&lastEvalRun.version==='V3'?[
         ['可迁移命中率（V3）',fmtPct(a.transferAcc),
-         '标注「有原文事实、可按 JD 措辞改写」的能力中，模型判为可迁移且通过本地迁移校验的比例；'+fmtFrac(a.transferHit,a.transferTotal)+'。模型另判可迁移但标注未列 '+a.transferExtra+' 项，单列为冗余，防止「全判可迁移」刷高命中。'],
+         '标注「有原文事实、可按 JD 措辞改写」的能力中，模型判为可迁移且事实片段同源的比例；'+fmtFrac(a.transferHit,a.transferTotal)+'。按事实片段匹配而非能力名（名可漂移，事实不可）。模型另判可迁移但事实片段无标注依据 '+a.transferExtra+' 项，单列为冗余，防止「全判可迁移」刷高命中。'],
         ['追问卡覆盖率（V3）',fmtPct(a.gapCover),
          '标注「原文无事实、必须追问补完」的缺口中，模型原生追问卡点名的比例；'+fmtFrac(a.gapHit,a.gapTotal)+'。本地兜底补的通用问题不计入。问题是否真的「一句话可回答」需人工判读，不编采纳率。']
       ]:[
